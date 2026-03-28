@@ -1,0 +1,51 @@
+{
+  "session": {
+    "id": "session-safari-example",
+    "schemaVersion": 1,
+    "kind": "safari-actionable",
+    "browser": "safari",
+    "createdAt": "2026-03-27T00:00:00.000Z",
+    "updatedAt": "2026-03-27T00:00:00.000Z",
+    "attach": {
+      "mode": "direct",
+      "source": "user-browser",
+      "scope": "browser"
+    },
+    "semantics": {
+      "inspect": "browser-tabs",
+      "list": "saved-session",
+      "resume": "saved-browser-target",
+      "tabReference": {
+        "windowIndex": "browser-position",
+        "tabIndex": "browser-position"
+      }
+    },
+    "target": {
+      "type": "signature",
+      "signature": "example-signature",
+      "url": "https://example.com",
+      "title": "Example"
+    },
+    "tab": {
+      "windowIndex": 1,
+      "tabIndex": 2,
+      "title": "Example",
+      "url": "https://example.com",
+      "identity": {
+        "titleKey": "Example",
+        "urlKey": "https://example.com",
+        "origin": "https://example.com"
+      }
+    },
+    "status": {
+      "state": "actionable",
+      "canAct": true
+    },
+    "capabilities": {
+      "resume": true,
+      "activate": true,
+      "navigate": true,
+      "screenshot": true
+    }
+  }
+}

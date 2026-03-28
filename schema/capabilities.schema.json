@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local-browser-bridge/schema/capabilities.schema.json",
+  "title": "Local Browser Bridge Capabilities Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "schema",
+    "generatedAt",
+    "product",
+    "transports",
+    "targeting",
+    "browsers"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "description": "Stable contract version. v1 consumers should gate compatibility on schemaVersion = 1.",
+      "const": 1
+    },
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "version"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "displayName",
+        "version",
+        "summary",
+        "direction",
+        "manifestoPath"
+      ],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "displayName": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Short product summary aligned with the reusable, agent-agnostic bridge positioning and honest capability signaling."
+        },
+        "manifestoPath": { "type": "string", "minLength": 1 },
+        "direction": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "localOnly",
+            "agentAgnostic",
+            "browserStrategy",
+            "architectureStrategy"
+          ],
+          "properties": {
+            "localOnly": { "const": true },
+            "agentAgnostic": { "const": true },
+            "browserStrategy": { "type": "string", "minLength": 1 },
+            "architectureStrategy": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "transports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cli", "http"],
+      "properties": {
+        "cli": { "$ref": "#/$defs/cliTransport" },
+        "http": { "$ref": "#/$defs/httpTransport" }
+      }
+    },
+    "targeting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["modes", "sessionResumeStrategies"],
+      "properties": {
+        "modes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/targetMode" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "sessionResumeStrategies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sessionResumeStrategy" },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "browsers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/browserCapabilityDescriptor" },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "targetMode": {
+      "type": "string",
+      "enum": ["front", "indexed", "signature"]
+    },
+    "sessionResumeStrategy": {
+      "type": "string",
+      "enum": [
+        "front",
+        "indexed",
+        "native_identity",
+        "signature",
+        "url_title",
+        "url",
+        "last_known_index"
+      ]
+    },
+    "sessionKind": {
+      "description": "Top-level browser/session behavior switch for the v1 stable contract: Safari is actionable; Chrome/Chromium is read-only in this phase.",
+      "type": "string",
+      "enum": ["safari-actionable", "chrome-readonly"]
+    },
+    "attachMode": {
+      "type": "string",
+      "enum": ["direct", "relay"]
+    },
+    "attachSource": {
+      "type": "string",
+      "enum": ["user-browser", "extension-relay"]
+    },
+    "attachScope": {
+      "type": "string",
+      "enum": ["browser", "tab"]
+    },
+    "attachReadiness": {
+      "type": "string",
+      "enum": ["ready", "degraded", "attention-required", "unavailable"]
+    },
+    "attachModeDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "source", "scope", "supported"],
+      "properties": {
+        "mode": { "$ref": "#/$defs/attachMode" },
+        "source": { "$ref": "#/$defs/attachSource" },
+        "scope": { "$ref": "#/$defs/attachScope" },
+        "supported": { "type": "boolean" },
+        "readiness": { "$ref": "#/$defs/attachReadiness" }
+      }
+    },
+    "bridgeTransport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available", "format"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "format": { "const": "json" }
+      }
+    },
+    "cliTransport": {
+      "allOf": [
+        { "$ref": "#/$defs/bridgeTransport" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["binary", "aliasBinaries", "command"],
+          "properties": {
+            "binary": { "type": "string", "minLength": 1 },
+            "aliasBinaries": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "command": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "httpTransport": {
+      "allOf": [
+        { "$ref": "#/$defs/bridgeTransport" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["baseUrl", "capabilitiesPath"],
+          "properties": {
+            "baseUrl": { "type": "string", "minLength": 1 },
+            "capabilitiesPath": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "browserCapabilityDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "browser",
+        "adapter",
+        "available",
+        "maturity",
+        "platforms",
+        "bridge",
+        "targeting",
+        "operations",
+        "transports",
+        "constraints"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/sessionKind"
+        },
+        "browser": { "type": "string", "minLength": 1 },
+        "adapter": { "type": "string", "minLength": 1 },
+        "available": { "type": "boolean" },
+        "maturity": { "type": "string", "minLength": 1 },
+        "platforms": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "bridge": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["browserNative", "implementation"],
+          "properties": {
+            "browserNative": { "type": "boolean" },
+            "implementation": { "type": "string", "minLength": 1 }
+          }
+        },
+        "targeting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["modes", "sessionResumeStrategies"],
+          "properties": {
+            "modes": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/targetMode" },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "sessionResumeStrategies": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/sessionResumeStrategy" },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          }
+        },
+        "operations": {
+          "description": "Operation-level support for this browser kind. In v1, Safari is actionable while Chrome/Chromium remains read-only for runtime actions.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "capabilities",
+            "diagnostics",
+            "inspectFrontTab",
+            "inspectTab",
+            "listTabs",
+            "attach",
+            "resumeSession",
+            "activate",
+            "navigate",
+            "screenshot"
+          ],
+          "properties": {
+            "capabilities": { "type": "boolean" },
+            "diagnostics": { "type": "boolean" },
+            "inspectFrontTab": { "type": "boolean" },
+            "inspectTab": { "type": "boolean" },
+            "listTabs": { "type": "boolean" },
+            "attach": { "type": "boolean" },
+            "resumeSession": { "type": "boolean" },
+            "activate": { "type": "boolean" },
+            "navigate": { "type": "boolean" },
+            "screenshot": { "type": "boolean" }
+          }
+        },
+        "attachModes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/attachModeDescriptor" },
+          "minItems": 1
+        },
+        "transports": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cli", "http"],
+          "properties": {
+            "cli": { "type": "boolean" },
+            "http": { "type": "boolean" }
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

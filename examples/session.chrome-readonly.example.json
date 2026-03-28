@@ -1,0 +1,54 @@
+{
+  "session": {
+    "id": "session-chrome-example",
+    "schemaVersion": 1,
+    "kind": "chrome-readonly",
+    "browser": "chrome",
+    "createdAt": "2026-03-27T00:00:00.000Z",
+    "updatedAt": "2026-03-27T00:00:00.000Z",
+    "attach": {
+      "mode": "direct",
+      "source": "user-browser",
+      "scope": "browser"
+    },
+    "semantics": {
+      "inspect": "browser-tabs",
+      "list": "saved-session",
+      "resume": "saved-browser-target",
+      "tabReference": {
+        "windowIndex": "browser-position",
+        "tabIndex": "browser-position"
+      }
+    },
+    "target": {
+      "type": "signature",
+      "signature": "example-signature",
+      "url": "https://example.com/two",
+      "title": "Example Two",
+      "native": {
+        "targetId": "page-2"
+      }
+    },
+    "tab": {
+      "windowIndex": 1,
+      "tabIndex": 2,
+      "title": "Example Two",
+      "url": "https://example.com/two",
+      "identity": {
+        "titleKey": "Example Two",
+        "urlKey": "https://example.com/two",
+        "origin": "https://example.com"
+      }
+    },
+    "status": {
+      "state": "read-only",
+      "canAct": false
+    },
+    "capabilities": {
+      "resume": true,
+      "activate": false,
+      "navigate": false,
+      "screenshot": false
+    }
+  }
+}

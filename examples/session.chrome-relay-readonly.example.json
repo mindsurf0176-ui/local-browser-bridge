@@ -1,0 +1,59 @@
+{
+  "session": {
+    "id": "session-chrome-relay-example",
+    "schemaVersion": 1,
+    "kind": "chrome-readonly",
+    "browser": "chrome",
+    "createdAt": "2026-03-28T11:00:00.000Z",
+    "attach": {
+      "mode": "relay",
+      "source": "extension-relay",
+      "scope": "tab",
+      "resumable": false,
+      "resumeRequiresUserGesture": true,
+      "expiresAt": "2026-03-28T12:00:00.000Z",
+      "trustedAt": "2026-03-28T11:00:00.000Z"
+    },
+    "semantics": {
+      "inspect": "shared-tab-only",
+      "list": "saved-session",
+      "resume": "current-shared-tab",
+      "tabReference": {
+        "windowIndex": "synthetic-shared-tab-position",
+        "tabIndex": "synthetic-shared-tab-position"
+      },
+      "notes": [
+        "Relay sessions describe the last tab explicitly shared through the extension, not general Chrome tab visibility.",
+        "Resume only checks the currently shared relay tab and may require the user to share the tab again."
+      ]
+    },
+    "target": {
+      "type": "signature",
+      "signature": "relay-signature",
+      "url": "https://example.com/shared",
+      "title": "Relay Example"
+    },
+    "tab": {
+      "windowIndex": 1,
+      "tabIndex": 1,
+      "title": "Relay Example",
+      "url": "https://example.com/shared",
+      "identity": {
+        "titleKey": "relay example",
+        "urlKey": "https://example.com/shared",
+        "origin": "https://example.com",
+        "pathname": "/shared"
+      }
+    },
+    "status": {
+      "state": "read-only",
+      "canAct": false
+    },
+    "capabilities": {
+      "resume": true,
+      "activate": false,
+      "navigate": false,
+      "screenshot": false
+    }
+  }
+}

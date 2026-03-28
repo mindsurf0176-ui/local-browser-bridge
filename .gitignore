@@ -1,0 +1,4 @@
+dist
+.tmp-tests
+.data
+node_modules

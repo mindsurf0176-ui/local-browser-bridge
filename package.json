@@ -1,0 +1,23 @@
+{
+  "name": "local-browser-bridge",
+  "version": "0.1.0",
+  "description": "Reusable local browser bridge with CLI and local HTTP API, starting with Safari on macOS.",
+  "license": "MIT",
+  "private": true,
+  "type": "commonjs",
+  "bin": {
+    "local-browser-bridge": "dist/src/cli.js",
+    "safari-attach-tool": "dist/src/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist .tmp-tests",
+    "test": "npm run build && node --test dist/tests/**/*.test.js",
+    "cli": "node dist/src/cli.js",
+    "serve": "node dist/src/cli.js serve"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "typescript": "^5.9.3"
+  }
+}
