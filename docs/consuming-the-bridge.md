@@ -11,6 +11,7 @@ Examples of consumers:
 - local daemons
 - test harnesses
 
+The primary agent/client contract is [Agent Integration Contract](./agent-integration-contract.md).
 If you are wiring this into an OpenClaw/browser-style UX, see the more product-facing adapter note at [OpenClaw-style consumer integration guide](./openclaw-style-consumer-integration.md).
 
 ## Integration model

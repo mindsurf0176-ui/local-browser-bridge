@@ -21,8 +21,10 @@ The project started as `safari-attach-tool`, but the product surface is now inte
 
 The canonical product requirements document lives in [PRD.md](PRD.md).
 The short direction summary lives in [docs/product-direction.md](docs/product-direction.md).
+The primary agent/client integration contract lives in [docs/agent-integration-contract.md](docs/agent-integration-contract.md).
 The client-consumption guide lives in [docs/consuming-the-bridge.md](docs/consuming-the-bridge.md).
 For OpenClaw/browser-style consumer wiring specifically, see [docs/openclaw-style-consumer-integration.md](docs/openclaw-style-consumer-integration.md).
+For the next-step OpenClaw adapter shape, see [docs/openclaw-adapter-draft.md](docs/openclaw-adapter-draft.md).
 
 ## Stable contract
 

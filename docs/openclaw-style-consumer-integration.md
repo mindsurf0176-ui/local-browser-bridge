@@ -1,5 +1,7 @@
 # OpenClaw-style Consumer Integration Guide
 
+This note is an OpenClaw-specific wrapper around the general [Agent Integration Contract](./agent-integration-contract.md).
+
 This note is for a real browser consumer that wants to present `local-browser-bridge` behind an OpenClaw/browser-style UX.
 
 The goal is simple:
