@@ -434,6 +434,10 @@ If you have a local extension/helper that can write relay state, point the bridg
 export LOCAL_BROWSER_BRIDGE_CHROME_RELAY_STATE_PATH="$PWD/.local-browser-bridge/chrome-relay-state.json"
 ```
 
+Producer contract and field guidance:
+
+- [docs/chrome-relay-producer-contract.md](docs/chrome-relay-producer-contract.md)
+
 Example probe payload:
 
 ```json
@@ -459,6 +463,8 @@ If the probe reports a currently shared tab, `attach.relay.ready` becomes `true`
 - Canonical PRD: `PRD.md`
 - Direction summary: `docs/product-direction.md`
 - Consumer guide: `docs/consuming-the-bridge.md`
+- Relay producer guide: `docs/chrome-relay-producer-contract.md`
+- Relay state schema: `schema/chrome-relay-state.schema.json`
 - Capabilities schema: `schema/capabilities.schema.json`
 - Example fixtures: `examples/*.json`
 - Runtime capability payloads: CLI `capabilities` and HTTP `GET /v1/capabilities`

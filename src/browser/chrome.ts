@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { AppError } from "../errors";
+import { validateChromeRelayState, type ChromeRelayStateProbe } from "../chrome-relay-state";
 import type {
   BrowserAdapter,
   BrowserAttachModeDiagnostics,
@@ -44,25 +45,6 @@ interface ChromeListTarget {
   attached?: boolean;
   openerId?: string;
   browserContextId?: string;
-}
-
-interface ChromeRelayStateTabProbe {
-  id?: string;
-  url?: string;
-  title?: string;
-}
-
-interface ChromeRelayStateProbe {
-  version?: string;
-  updatedAt?: string;
-  extensionInstalled?: boolean;
-  connected?: boolean;
-  userGestureRequired?: boolean;
-  shareRequired?: boolean;
-  resumable?: boolean;
-  expiresAt?: string;
-  resumeRequiresUserGesture?: boolean;
-  sharedTab?: ChromeRelayStateTabProbe | null;
 }
 
 interface ChromeRelayAttachResolution {
@@ -299,8 +281,8 @@ async function loadRelayProbe(): Promise<ChromeRelayProbeResult> {
   for (const candidate of candidates) {
     try {
       const raw = JSON.parse(await readFile(candidate.path, "utf8")) as unknown;
-      const probe = toRelayProbe(raw);
-      if (!probe) {
+      const validation = validateChromeRelayState(raw);
+      if (!validation.ok || !validation.probe) {
         return {
           checkedPaths,
           sourcePath: candidate.path,
@@ -313,7 +295,7 @@ async function loadRelayProbe(): Promise<ChromeRelayProbeResult> {
         checkedPaths,
         sourcePath: candidate.path,
         source: candidate.source,
-        probe
+        probe: validation.probe
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "";

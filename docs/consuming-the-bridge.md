@@ -13,6 +13,7 @@ Examples of consumers:
 
 The primary agent/client contract is [Agent Integration Contract](./agent-integration-contract.md).
 If you are wiring this into an OpenClaw/browser-style UX, see the more product-facing adapter note at [OpenClaw-style consumer integration guide](./openclaw-style-consumer-integration.md).
+If you are building the local Chrome relay writer itself, see [Chrome relay producer contract](./chrome-relay-producer-contract.md).
 
 ## Integration model
 

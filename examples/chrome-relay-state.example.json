@@ -3,10 +3,10 @@
   "updatedAt": "2026-03-28T11:00:00.000Z",
   "extensionInstalled": true,
   "connected": true,
-  "shareRequired": false,
   "userGestureRequired": false,
-  "resumable": false,
-  "resumeRequiresUserGesture": true,
+  "shareRequired": false,
+  "resumable": true,
+  "resumeRequiresUserGesture": false,
   "expiresAt": "2026-03-28T12:00:00.000Z",
   "sharedTab": {
     "id": "tab-123",

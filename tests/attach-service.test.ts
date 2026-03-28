@@ -1025,6 +1025,24 @@ test("chrome relay diagnostics differentiate local probe states and report relay
       {
         extensionInstalled: true,
         connected: true,
+        shareRequired: true,
+        sharedTab: {
+          id: "tab-contradiction"
+        }
+      },
+      async () => {
+        const service = new AttachService();
+        const diagnostics = await service.diagnostics("chrome");
+
+        assert.equal(diagnostics.attach?.relay.state, "unavailable");
+        assert.equal(diagnostics.attach?.relay.blockers[0]?.code, "relay_probe_invalid");
+      }
+    );
+
+    await withChromeRelayStateFixture(
+      {
+        extensionInstalled: true,
+        connected: true,
         userGestureRequired: true
       },
       async () => {

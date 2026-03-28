@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local-browser-bridge/schema/chrome-relay-state.schema.json",
+  "title": "Local Browser Bridge Chrome Relay State",
+  "description": "Producer-side local JSON state for the Chrome shared-tab relay probe consumed by local-browser-bridge.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "extensionInstalled": { "type": "boolean" },
+    "connected": { "type": "boolean" },
+    "userGestureRequired": { "type": "boolean" },
+    "shareRequired": { "type": "boolean" },
+    "resumable": { "type": "boolean" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "resumeRequiresUserGesture": { "type": "boolean" },
+    "sharedTab": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "url": { "type": "string", "minLength": 1 },
+            "title": { "type": "string", "minLength": 1 }
+          },
+          "anyOf": [
+            { "required": ["id"] },
+            { "required": ["url"] },
+            { "required": ["title"] }
+          ]
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "extensionInstalled": { "const": false }
+        },
+        "required": ["extensionInstalled"]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "properties": { "connected": { "const": true } },
+              "required": ["connected"]
+            },
+            {
+              "properties": { "sharedTab": { "type": "object" } },
+              "required": ["sharedTab"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "connected": { "const": false }
+        },
+        "required": ["connected"]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "properties": { "sharedTab": { "type": "object" } },
+              "required": ["sharedTab"]
+            },
+            {
+              "properties": { "shareRequired": { "const": true } },
+              "required": ["shareRequired"]
+            },
+            {
+              "properties": { "userGestureRequired": { "const": true } },
+              "required": ["userGestureRequired"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "not": {
+        "allOf": [
+          {
+            "properties": { "userGestureRequired": { "const": true } },
+            "required": ["userGestureRequired"]
+          },
+          {
+            "properties": { "sharedTab": { "type": "object" } },
+            "required": ["sharedTab"]
+          }
+        ]
+      }
+    },
+    {
+      "not": {
+        "allOf": [
+          {
+            "properties": { "shareRequired": { "const": true } },
+            "required": ["shareRequired"]
+          },
+          {
+            "properties": { "sharedTab": { "type": "object" } },
+            "required": ["sharedTab"]
+          }
+        ]
+      }
+    }
+  ]
+}
