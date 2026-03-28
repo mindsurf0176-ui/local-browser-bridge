@@ -32,6 +32,16 @@ Producer guidance:
 - do not append multiple JSON objects to one file
 - prefer creating the parent directory ahead of time
 
+Reference helper in this repo:
+
+```bash
+npm run build
+npx local-browser-bridge-chrome-relay click-required
+npx local-browser-bridge-chrome-relay shared-tab --tab-id relay-42 --url https://example.com/docs --title "Shared Docs"
+```
+
+The helper is intentionally minimal and only writes current v1 read-only relay snapshots. It does not imply browser-wide visibility or Chrome runtime actionability.
+
 The bridge treats the file as local machine state, not as a remotely trusted artifact.
 
 ## JSON shape

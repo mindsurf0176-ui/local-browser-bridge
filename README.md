@@ -438,6 +438,24 @@ Producer contract and field guidance:
 
 - [docs/chrome-relay-producer-contract.md](docs/chrome-relay-producer-contract.md)
 
+Reference helper for local simulation:
+
+```bash
+npm run build
+
+# defaults to ./.local-browser-bridge/chrome-relay-state.json unless --output or
+# LOCAL_BROWSER_BRIDGE_CHROME_RELAY_STATE_PATH is set
+npx local-browser-bridge-chrome-relay extension-missing
+npx local-browser-bridge-chrome-relay disconnected
+npx local-browser-bridge-chrome-relay click-required
+npx local-browser-bridge-chrome-relay share-required
+npx local-browser-bridge-chrome-relay shared-tab --tab-id relay-42 --title "Shared Docs" --url https://example.com/docs
+npx local-browser-bridge-chrome-relay expired-share --tab-id relay-42 --url https://example.com/docs
+npx local-browser-bridge-chrome-relay clear-shared-tab
+```
+
+The helper reuses the bridge's relay validator before writing and replaces the full JSON snapshot through a temp-file rename, matching the producer contract's overwrite model.
+
 Example probe payload:
 
 ```json

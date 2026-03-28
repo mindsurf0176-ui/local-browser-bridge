@@ -7,14 +7,16 @@
   "type": "commonjs",
   "bin": {
     "local-browser-bridge": "dist/src/cli.js",
-    "safari-attach-tool": "dist/src/cli.js"
+    "safari-attach-tool": "dist/src/cli.js",
+    "local-browser-bridge-chrome-relay": "dist/src/chrome-relay-helper-cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist .tmp-tests",
     "test": "npm run build && node --test dist/tests/**/*.test.js",
     "cli": "node dist/src/cli.js",
-    "serve": "node dist/src/cli.js serve"
+    "serve": "node dist/src/cli.js serve",
+    "relay-helper": "node dist/src/chrome-relay-helper-cli.js"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
