@@ -9,6 +9,29 @@ Reusable, agent-agnostic local browser bridge for AI clients, developer tools, a
 
 The project started as `safari-attach-tool`, but the product surface is now intentionally broader than any one consumer or agent runtime.
 
+## Quick start
+
+If you are new to the repo, start here:
+
+- **Understand the toolkit surface first:** [src/index.ts](src/index.ts) is the shared consumer entrypoint. It re-exports the transport-neutral helper surface plus the reference CLI/HTTP adapters used by downstream runtimes and clients.
+- **Use the contract artifacts as the source of truth:** start with [docs/agent-integration-contract.md](docs/agent-integration-contract.md), then the machine-readable schemas in [schema/capabilities.schema.json](schema/capabilities.schema.json) and [schema/chrome-relay-error.schema.json](schema/chrome-relay-error.schema.json), plus the example payloads in [examples/](examples/).
+- **Pick a transport only at the edge:** the toolkit exposes the same bridge contract through the JSON CLI and the local HTTP API. Choose whichever fits your runtime; neither is the privileged path.
+- **Copy from runnable consumers when wiring a client:** use [examples/clients/http-consumer.ts](examples/clients/http-consumer.ts), [examples/clients/cli-consumer.ts](examples/clients/cli-consumer.ts), and the end-to-end demo at [examples/clients/http-node.ts](examples/clients/http-node.ts).
+
+## Canonical artifacts and docs
+
+Use these artifacts as the canonical sources for product intent, integration behavior, consumer guidance, and the Chrome relay error contract:
+
+- [PRD.md](PRD.md) - product requirements and direction
+- [docs/universal-toolkit-summary.md](docs/universal-toolkit-summary.md) - short progress summary of the shared-toolkit direction and where to start
+- [docs/agent-integration-contract.md](docs/agent-integration-contract.md) - transport-neutral integration contract
+- [docs/adapter-patterns.md](docs/adapter-patterns.md) - canonical runtime-neutral adapter patterns for shared consumers
+- [docs/consuming-the-bridge.md](docs/consuming-the-bridge.md) - consumer implementation guidance
+- [src/index.ts](src/index.ts) - shared helper/reference-adapter entrypoint for consumers importing the toolkit as code
+- [schema/capabilities.schema.json](schema/capabilities.schema.json) - stable capabilities contract schema
+- [schema/chrome-relay-error.schema.json](schema/chrome-relay-error.schema.json) - Chrome relay error schema
+- [examples/error.chrome-relay-share-required.example.json](examples/error.chrome-relay-share-required.example.json) - Chrome relay share-required example
+
 ## What this product is
 
 `local-browser-bridge` is:
@@ -22,6 +45,7 @@ The project started as `safari-attach-tool`, but the product surface is now inte
 The canonical product requirements document lives in [PRD.md](PRD.md).
 The short direction summary lives in [docs/product-direction.md](docs/product-direction.md).
 The primary agent/client integration contract lives in [docs/agent-integration-contract.md](docs/agent-integration-contract.md).
+The canonical runtime-neutral adapter patterns live in [docs/adapter-patterns.md](docs/adapter-patterns.md).
 The client-consumption guide lives in [docs/consuming-the-bridge.md](docs/consuming-the-bridge.md).
 For OpenClaw/browser-style consumer wiring specifically, see [docs/openclaw-style-consumer-integration.md](docs/openclaw-style-consumer-integration.md).
 For the next-step OpenClaw adapter shape, see [docs/openclaw-adapter-draft.md](docs/openclaw-adapter-draft.md).
@@ -121,7 +145,7 @@ npm install
 npm run build
 ```
 
-## Consumer entry points
+## Consumer surfaces and examples
 
 ### CLI
 
@@ -212,6 +236,8 @@ curl -X POST http://127.0.0.1:3000/v1/sessions/<session-id>/resume
 ```
 
 See [docs/consuming-the-bridge.md](docs/consuming-the-bridge.md) for fuller CLI and HTTP examples, including the practical HTTP consumer demo at [examples/clients/http-node.ts](examples/clients/http-node.ts).
+For runtime-neutral wrapper patterns across OpenClaw, AWOS, Codex, Claude Code, and custom consumers, including copyable minimal adapter skeletons built on the shared helper surface, see [docs/adapter-patterns.md](docs/adapter-patterns.md).
+If you are importing the toolkit directly instead of shelling out or calling HTTP, start from [src/index.ts](src/index.ts), which re-exports the shared helpers plus the CLI/HTTP reference adapters used in [examples/clients/cli-consumer.ts](examples/clients/cli-consumer.ts) and [examples/clients/http-consumer.ts](examples/clients/http-consumer.ts).
 
 Quick copy-paste run for the demo:
 
@@ -315,6 +341,12 @@ Reference fixtures:
 - [examples/session.safari-actionable.example.json](examples/session.safari-actionable.example.json)
 - [examples/session.chrome-readonly.example.json](examples/session.chrome-readonly.example.json)
 - [examples/session.chrome-relay-readonly.example.json](examples/session.chrome-relay-readonly.example.json)
+- [examples/error.chrome-relay-share-required.example.json](examples/error.chrome-relay-share-required.example.json)
+
+Chrome relay failure contract artifacts:
+
+- [schema/chrome-relay-error.schema.json](schema/chrome-relay-error.schema.json)
+- [docs/consuming-the-bridge.md](docs/consuming-the-bridge.md)
 
 ### Safari session example
 
@@ -425,6 +457,7 @@ CLI stderr and HTTP errors share the same machine-readable structure:
 - Relay diagnostics can optionally consume a local JSON probe from `LOCAL_BROWSER_BRIDGE_CHROME_RELAY_STATE_PATH`, `./.local-browser-bridge/chrome-relay-state.json`, or `~/.local-browser-bridge/chrome-relay-state.json`.
 - Relay probe states distinguish extension missing, disconnected, user-click/share required, no-shared-tab, and expired-scope cases. When a shared tab is present, `attach.mode = relay` can create a read-only Chrome session for that tab.
 - Chrome relay sessions are saved shared-tab references. They do not make `/v1/tab` or `/v1/tabs` relay-aware, and their `tab.windowIndex` / `tab.tabIndex` should be treated as synthetic shared-tab placeholders.
+- Relay attach/resume failures reuse the same shared-tab-scoped `error.details` contract over CLI and HTTP. Consumers should branch on the returned relay metadata rather than guessing or silently falling back between direct and relay paths.
 
 ### Chrome relay probe
 
@@ -474,7 +507,9 @@ Example probe payload:
 }
 ```
 
-If the probe reports a currently shared tab, `attach.relay.ready` becomes `true` and you can explicitly request relay attach with `--attach-mode relay` or `{ "attach": { "mode": "relay" } }`. Relay sessions stay `chrome-readonly`, are scoped to that one shared tab, and may carry truthful `resumable`, `resumeRequiresUserGesture`, and `expiresAt` metadata when the probe provides it. Saved relay sessions should be presented as "resume against the currently shared tab" rather than as general Chrome browser sessions.
+If the probe reports a currently shared tab, `attach.relay.ready` becomes `true` and you can explicitly request relay attach with `--attach-mode relay` or `{ "attach": { "mode": "relay" } }`. Relay sessions stay `chrome-readonly`, are scoped to that one shared tab, and may carry truthful `resumable`, `resumeRequiresUserGesture`, `expiresAt`, and `trustedAt` metadata when the probe provides it. On successful saved-session resume, use the returned session as the fresh source of relay metadata for that currently shared tab. Saved relay sessions should be presented as "resume against the currently shared tab" rather than as general Chrome browser sessions.
+
+If relay attach or relay resume fails, CLI stderr JSON and HTTP error responses now stay aligned through additive `error.details` metadata. Consumers can branch on `error.details.context.operation` plus `error.details.relay.branch` rather than inferring UX only from status codes or free-form text. The package root now re-exports two stable consumer utilities from `src/index.ts`: the narrower relay helper from `src/chrome-relay-error-helper.ts` and the broader attach/resume UX helper from `src/browser-attach-ux-helper.ts`. The sample HTTP client uses that public helper entrypoint directly.
 
 ## Contract files
 

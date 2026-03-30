@@ -5,15 +5,23 @@ import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { AppError } from "../errors";
+import { normalizeAttachmentSession } from "../session-metadata";
+import { buildSignatureTargetFromTab } from "../target";
 import { validateChromeRelayState, type ChromeRelayStateProbe } from "../chrome-relay-state";
 import type {
+  AttachmentSession,
   BrowserAdapter,
+  BrowserAttachBlockerCode,
   BrowserAttachModeDiagnostics,
   BrowserDiagnostics,
   BrowserNativeIdentity,
   BrowserSessionAction,
   BrowserSourceCandidate,
   BrowserTabTarget,
+  ChromeRelayErrorDetails,
+  ChromeRelayFailureBranch,
+  ChromeRelayFailureOperation,
+  ChromeRelayFailurePhase,
   SessionActionResult,
   TabIdentity,
   TabMetadata
@@ -94,6 +102,25 @@ function createIdentity(native: BrowserNativeIdentity, url: string, title: strin
     pathname,
     native
   };
+}
+
+function refreshRelaySession(session: AttachmentSession, tab: TabMetadata, probe: ChromeRelayStateProbe): AttachmentSession {
+  return normalizeAttachmentSession({
+    ...session,
+    target: buildSignatureTargetFromTab(tab),
+    tab,
+    frontTab: tab,
+    attach: {
+      ...session.attach,
+      mode: "relay",
+      source: "extension-relay",
+      scope: "tab",
+      trustedAt: probe.updatedAt,
+      resumable: probe.resumable,
+      expiresAt: probe.expiresAt,
+      resumeRequiresUserGesture: probe.resumeRequiresUserGesture
+    }
+  });
 }
 
 function toTabMetadata(target: ChromeListTarget, index: number): TabMetadata {
@@ -438,13 +465,105 @@ function toRelayTabMetadata(probe: ChromeRelayStateProbe): TabMetadata {
   };
 }
 
-function toRelayAttachError(result: ChromeRelayProbeResult): AppError {
+function buildChromeRelayFailureDetails(
+  code: BrowserAttachBlockerCode,
+  operation: ChromeRelayFailureOperation,
+  overrides?: {
+    branch?: ChromeRelayFailureBranch;
+    phase?: ChromeRelayFailurePhase;
+    retryable?: boolean;
+    userActionRequired?: boolean;
+    currentSharedTabMatches?: boolean;
+    sessionId?: string;
+    resumable?: boolean;
+    resumeRequiresUserGesture?: boolean;
+    expiresAt?: string;
+  }
+): ChromeRelayErrorDetails {
+  const branchByCode: Record<BrowserAttachBlockerCode, ChromeRelayFailureBranch> = {
+    direct_unavailable_attach_endpoint_missing: "unsupported",
+    direct_degraded_discovery_partial: "unsupported",
+    relay_probe_not_configured: "configure-relay-probe",
+    relay_probe_invalid: "repair-relay-probe",
+    relay_extension_not_installed: "install-extension",
+    relay_extension_disconnected: "reconnect-extension",
+    relay_toolbar_not_clicked: "click-toolbar-button",
+    relay_share_required: operation === "resumeSession" ? "share-original-tab-again" : "share-tab",
+    relay_no_shared_tab: operation === "resumeSession" ? "share-original-tab-again" : "share-tab",
+    relay_attach_target_out_of_scope: operation === "resumeSession" ? "share-original-tab-again" : "use-current-shared-tab",
+    relay_attach_scope_expired: "share-original-tab-again",
+    relay_transport_not_implemented: "unsupported"
+  };
+  const retryableByCode: Record<BrowserAttachBlockerCode, boolean> = {
+    direct_unavailable_attach_endpoint_missing: false,
+    direct_degraded_discovery_partial: false,
+    relay_probe_not_configured: false,
+    relay_probe_invalid: false,
+    relay_extension_not_installed: true,
+    relay_extension_disconnected: true,
+    relay_toolbar_not_clicked: true,
+    relay_share_required: true,
+    relay_no_shared_tab: true,
+    relay_attach_target_out_of_scope: true,
+    relay_attach_scope_expired: true,
+    relay_transport_not_implemented: false
+  };
+  const userActionRequiredByCode: Record<BrowserAttachBlockerCode, boolean> = {
+    direct_unavailable_attach_endpoint_missing: false,
+    direct_degraded_discovery_partial: false,
+    relay_probe_not_configured: false,
+    relay_probe_invalid: false,
+    relay_extension_not_installed: true,
+    relay_extension_disconnected: true,
+    relay_toolbar_not_clicked: true,
+    relay_share_required: true,
+    relay_no_shared_tab: true,
+    relay_attach_target_out_of_scope: true,
+    relay_attach_scope_expired: true,
+    relay_transport_not_implemented: false
+  };
+
+  return {
+    context: {
+      browser: "chrome",
+      attachMode: "relay",
+      operation
+    },
+    relay: {
+      branch: overrides?.branch ?? branchByCode[code],
+      retryable: overrides?.retryable ?? retryableByCode[code],
+      userActionRequired: overrides?.userActionRequired ?? userActionRequiredByCode[code],
+      phase: overrides?.phase ?? "diagnostics",
+      sharedTabScope: "current-shared-tab",
+      currentSharedTabMatches: overrides?.currentSharedTabMatches,
+      resumable: overrides?.resumable,
+      resumeRequiresUserGesture: overrides?.resumeRequiresUserGesture,
+      expiresAt: overrides?.expiresAt,
+      sessionId: overrides?.sessionId
+    }
+  };
+}
+
+function createChromeRelayFailure(
+  message: string,
+  code: BrowserAttachBlockerCode,
+  statusCode: number,
+  operation: ChromeRelayFailureOperation,
+  overrides?: Parameters<typeof buildChromeRelayFailureDetails>[2]
+): AppError<ChromeRelayErrorDetails> {
+  return new AppError(message, statusCode, code, buildChromeRelayFailureDetails(code, operation, overrides));
+}
+
+function toRelayAttachError(result: ChromeRelayProbeResult, operation: ChromeRelayFailureOperation = "attach"): AppError {
   const diagnostics = buildRelayDiagnostics(result);
   const blocker = diagnostics.blockers[0];
-  return new AppError(
+  const code = blocker?.code ?? "relay_no_shared_tab";
+  return createChromeRelayFailure(
     blocker?.message ?? "Chrome relay attach is not available for the current tab.",
-    blocker?.code === "relay_attach_target_out_of_scope" ? 409 : 503,
-    blocker?.code ?? "relay_no_shared_tab"
+    code,
+    code === "relay_attach_target_out_of_scope" ? 409 : 503,
+    operation,
+    { phase: "diagnostics" }
   );
 }
 
@@ -457,10 +576,16 @@ export async function resolveChromeRelayAttach(target: BrowserTabTarget): Promis
   }
 
   if (target.type !== "front") {
-    throw new AppError(
+    throw createChromeRelayFailure(
       "Chrome relay attach is scoped to the currently shared tab only; use the front tab target or omit an explicit target.",
+      "relay_attach_target_out_of_scope",
       409,
-      "relay_attach_target_out_of_scope"
+      "attach",
+      {
+        phase: "target-selection",
+        branch: "use-current-shared-tab",
+        currentSharedTabMatches: false
+      }
     );
   }
 
@@ -478,44 +603,71 @@ export async function resolveChromeRelayAttach(target: BrowserTabTarget): Promis
   };
 }
 
-export async function resumeChromeRelaySession(session: import("../types").AttachmentSession): Promise<import("../types").ResumedSession> {
+export async function resumeChromeRelaySession(session: AttachmentSession): Promise<import("../types").ResumedSession> {
   const result = await loadRelayProbe();
   const probe = result.probe;
 
   if (!probe || result.error === "invalid") {
-    throw toRelayAttachError(result);
+    throw toRelayAttachError(result, "resumeSession");
   }
   if (session.attach.expiresAt && isExpiredIsoTimestamp(session.attach.expiresAt)) {
-    throw new AppError(
+    throw createChromeRelayFailure(
       "The saved Chrome relay session has expired and the tab must be shared again before it can be resumed.",
+      "relay_attach_scope_expired",
       409,
-      "relay_attach_scope_expired"
+      "resumeSession",
+      {
+        phase: "session-precondition",
+        expiresAt: session.attach.expiresAt,
+        resumable: session.attach.resumable,
+        resumeRequiresUserGesture: session.attach.resumeRequiresUserGesture,
+        sessionId: session.id
+      }
     );
   }
   if (session.attach.resumable === false || session.attach.resumeRequiresUserGesture === true) {
-    throw new AppError(
+    throw createChromeRelayFailure(
       "The saved Chrome relay session is not resumable without the user sharing the tab again.",
+      "relay_share_required",
       409,
-      "relay_share_required"
+      "resumeSession",
+      {
+        phase: "session-precondition",
+        resumable: session.attach.resumable,
+        resumeRequiresUserGesture: session.attach.resumeRequiresUserGesture,
+        expiresAt: session.attach.expiresAt,
+        sessionId: session.id
+      }
     );
   }
 
   const diagnostics = buildRelayDiagnostics(result);
   if (!diagnostics.ready) {
-    throw toRelayAttachError(result);
+    throw toRelayAttachError(result, "resumeSession");
   }
 
   const tab = toRelayTabMetadata(probe);
   if (session.target.type === "signature" && session.target.signature !== tab.identity.signature) {
-    throw new AppError(
+    throw createChromeRelayFailure(
       "The currently shared relay tab does not match the saved Chrome relay session. Share the original tab again before resuming.",
+      "relay_attach_target_out_of_scope",
       409,
-      "relay_attach_target_out_of_scope"
+      "resumeSession",
+      {
+        phase: "shared-tab-match",
+        currentSharedTabMatches: false,
+        resumable: session.attach.resumable,
+        resumeRequiresUserGesture: session.attach.resumeRequiresUserGesture,
+        expiresAt: session.attach.expiresAt,
+        sessionId: session.id
+      }
     );
   }
 
+  const refreshedSession = refreshRelaySession(session, tab, probe);
+
   return {
-    session,
+    session: refreshedSession,
     tab,
     resumedAt: new Date().toISOString(),
     resolution: {

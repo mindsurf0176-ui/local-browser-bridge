@@ -1,21 +1,22 @@
-export class AppError extends Error {
+import type { BridgeErrorDetails, ErrorPayload } from "./types";
+
+export class AppError<TDetails = BridgeErrorDetails> extends Error {
   readonly statusCode: number;
   readonly code: string;
+  readonly details?: TDetails;
 
-  constructor(message: string, statusCode = 500, code = "internal_error") {
+  constructor(
+    message: string,
+    statusCode = 500,
+    code = "internal_error",
+    details?: TDetails
+  ) {
     super(message);
     this.name = "AppError";
     this.statusCode = statusCode;
     this.code = code;
+    this.details = details;
   }
-}
-
-export interface ErrorPayload {
-  error: {
-    code: string;
-    message: string;
-    statusCode: number;
-  };
 }
 
 export function toErrorPayload(error: unknown): { statusCode: number; payload: ErrorPayload } {
@@ -26,7 +27,8 @@ export function toErrorPayload(error: unknown): { statusCode: number; payload: E
         error: {
           code: error.code,
           message: error.message,
-          statusCode: error.statusCode
+          statusCode: error.statusCode,
+          ...(error.details ? { details: error.details } : {})
         }
       }
     };

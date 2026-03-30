@@ -1,12 +1,12 @@
 /**
  * Practical HTTP consumer demo for local-browser-bridge.
  *
- * This models an OpenClaw/browser-style integration:
+ * This models a generic local client integration:
  * 1) fetch stable capabilities
  * 2) fetch browser diagnostics for the selected path
  * 3) choose an explicit route: safari | chrome-direct | chrome-relay
  * 4) attach or resume
- * 5) render honest user-facing messaging from kind + attach.mode + diagnostics
+ * 5) render user-facing messaging from kind + attach.mode + semantics + diagnostics
  *
  * Copy-paste run:
  *   terminal 1 -> npm run serve
@@ -21,8 +21,17 @@
  * - Safari is the actionable path.
  * - Chrome direct is read-only.
  * - Chrome relay is read-only and shared-tab scoped.
+ * - Stable labels in this demo remain: "Safari (actionable)", "Chrome (direct, read-only)", and "Chrome (shared tab, read-only)".
+ * - Example documented prompts include "Chrome direct attach needs a local DevTools endpoint..." and "Chrome relay only works for a tab you explicitly share...".
  * - This demo does not silently fall back between Chrome direct and relay.
+ * - Relay behavior is derived from the returned contract fields, not from consumer-specific assumptions.
  */
+
+const {
+  interpretBrowserAttachUxFromDiagnostics,
+  interpretBrowserAttachUxFromError,
+  interpretBrowserAttachUxFromSession
+} = require("../../dist/src") as typeof import("../../src");
 
 type RouteName = "safari" | "chrome-direct" | "chrome-relay";
 type SessionKind = "safari-actionable" | "chrome-readonly";
@@ -126,6 +135,42 @@ type ResumedSessionPayload = {
   };
 };
 
+type BridgeErrorPayload = {
+  error: {
+    code: string;
+    message: string;
+    statusCode: number;
+    details?: {
+      context?: {
+        browser?: BrowserName;
+        attachMode?: AttachMode;
+        operation?: "attach" | "resumeSession";
+      };
+      relay?: {
+        branch?:
+          | "click-toolbar-button"
+          | "share-tab"
+          | "share-original-tab-again"
+          | "use-current-shared-tab"
+          | "install-extension"
+          | "reconnect-extension"
+          | "configure-relay-probe"
+          | "repair-relay-probe"
+          | "unsupported";
+        retryable?: boolean;
+        userActionRequired?: boolean;
+        phase?: "diagnostics" | "target-selection" | "session-precondition" | "shared-tab-match";
+        sharedTabScope?: "current-shared-tab";
+        currentSharedTabMatches?: boolean;
+        resumable?: boolean;
+        resumeRequiresUserGesture?: boolean;
+        expiresAt?: string;
+        sessionId?: string;
+      };
+    };
+  };
+};
+
 type ConsumerRoute = {
   name: RouteName;
   browser: BrowserName;
@@ -144,6 +189,16 @@ const baseUrl = process.env.LOCAL_BROWSER_BRIDGE_URL ?? "http://127.0.0.1:3000";
 const requestedRoute = normalizeRoute(process.argv[2] ?? "safari");
 const resumeSessionId = process.env.LOCAL_BROWSER_BRIDGE_SESSION_ID;
 
+class BridgeHttpError extends Error {
+  readonly payload: BridgeErrorPayload;
+
+  constructor(payload: BridgeErrorPayload) {
+    super(payload.error.message);
+    this.name = "BridgeHttpError";
+    this.payload = payload;
+  }
+}
+
 async function readJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
@@ -154,7 +209,8 @@ async function readJson<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`${init?.method ?? "GET"} ${path} failed with ${response.status}`);
+    const payload = (await response.json()) as BridgeErrorPayload;
+    throw new BridgeHttpError(payload);
   }
 
   return (await response.json()) as T;
@@ -183,35 +239,7 @@ function findBrowserCapability(capabilities: CapabilitiesPayload["capabilities"]
 }
 
 function firstBlockerPrompt(blockers: ReadinessBlocker[]): string | undefined {
-  const first = blockers[0]?.code;
-  if (!first) {
-    return undefined;
-  }
-
-  switch (first) {
-    case "automation_permission_denied":
-      return "Safari needs macOS Automation permission before I can control tabs. Grant access, then try again.";
-    case "screen_recording_permission_denied":
-      return "Safari screenshots also require Screen Recording permission on this Mac.";
-    case "browser_not_running":
-      return "Safari is not open yet. Open Safari with a normal tab, then retry.";
-    case "browser_no_windows":
-      return "Safari has no open browser windows yet. Open a normal Safari window, then retry.";
-    case "browser_no_tabs":
-      return "Safari has open windows, but there is no normal inspectable tab yet. Focus or open a regular Safari tab, then retry.";
-    case "direct_unavailable_attach_endpoint_missing":
-      return "Chrome direct attach needs a local DevTools endpoint that is already available on this machine. Once Chrome is running in that mode, I can inspect tabs in read-only mode.";
-    case "relay_toolbar_not_clicked":
-      return "To connect this Chrome tab, click the relay extension button on the tab you want to share.";
-    case "relay_share_required":
-      return "Chrome relay only works for a tab you explicitly share. Share the tab first, then retry.";
-    case "relay_no_shared_tab":
-      return "Chrome relay is connected, but there is no shared tab right now. Share the target tab, then retry.";
-    case "relay_attach_scope_expired":
-      return "That shared-tab grant is no longer active. Click the relay extension again on the original tab, then retry resume.";
-    default:
-      return blockers[0]?.message;
-  }
+  return blockers[0]?.message;
 }
 
 function buildRoute(
@@ -219,19 +247,27 @@ function buildRoute(
   browserCapability: BrowserCapability,
   diagnostics: BrowserDiagnostics
 ): ConsumerRoute {
+  const browser = routeName === "safari" ? "safari" : "chrome";
+  const attachMode = routeName === "chrome-relay" ? "relay" : "direct";
+  const ux = interpretBrowserAttachUxFromDiagnostics({
+    browser,
+    attachMode,
+    diagnostics
+  });
+
   if (routeName === "safari") {
     return {
       name: routeName,
       browser: "safari",
       attachMode: "direct",
-      label: "Safari (actionable)",
+      label: ux.label,
       expectedKind: "safari-actionable",
       readiness: {
         ready: Boolean(diagnostics.preflight?.inspect.ready && diagnostics.preflight?.automation.ready),
         state: diagnostics.preflight?.inspect.ready && diagnostics.preflight?.automation.ready ? "ready" : "unavailable",
         blockers: [...(diagnostics.preflight?.inspect.blockers ?? []), ...(diagnostics.preflight?.automation.blockers ?? [])]
       },
-      prompt: firstBlockerPrompt([
+      prompt: ux.prompt ?? firstBlockerPrompt([
         ...(diagnostics.preflight?.inspect.blockers ?? []),
         ...(diagnostics.preflight?.automation.blockers ?? []),
         ...(diagnostics.preflight?.screenshot.blockers ?? [])
@@ -244,14 +280,14 @@ function buildRoute(
       name: routeName,
       browser: "chrome",
       attachMode: "direct",
-      label: "Chrome (direct, read-only)",
+      label: ux.label,
       expectedKind: browserCapability.kind,
       readiness: {
         ready: Boolean(diagnostics.attach?.direct.ready),
         state: diagnostics.attach?.direct.state ?? "unavailable",
         blockers: diagnostics.attach?.direct.blockers ?? []
       },
-      prompt: firstBlockerPrompt(diagnostics.attach?.direct.blockers ?? [])
+      prompt: ux.prompt ?? firstBlockerPrompt(diagnostics.attach?.direct.blockers ?? [])
     };
   }
 
@@ -259,14 +295,14 @@ function buildRoute(
     name: routeName,
     browser: "chrome",
     attachMode: "relay",
-    label: "Chrome (shared tab, read-only)",
+    label: ux.label,
     expectedKind: browserCapability.kind,
     readiness: {
       ready: Boolean(diagnostics.attach?.relay.ready),
       state: diagnostics.attach?.relay.state ?? "unavailable",
       blockers: diagnostics.attach?.relay.blockers ?? []
     },
-    prompt: firstBlockerPrompt(diagnostics.attach?.relay.blockers ?? [])
+    prompt: ux.prompt ?? firstBlockerPrompt(diagnostics.attach?.relay.blockers ?? [])
   };
 }
 
@@ -281,15 +317,17 @@ function describeCapabilities(browserCapability: BrowserCapability): string {
   ].join(", ");
 }
 
-function describeSession(session: BridgeSession): void {
+function describeSession(session: BridgeSession, operation: "attach" | "resumeSession"): void {
+  const ux = interpretBrowserAttachUxFromSession({ session, operation });
   console.log(`Attached session ${session.id}`);
   console.log(`Session kind: ${session.kind}`);
   console.log(`Session attach mode: ${session.attach.mode}`);
   console.log(`Session state: ${session.status.state}`);
+  console.log(`Flow state: ${ux.state}`);
 
   switch (session.kind) {
     case "safari-actionable":
-      console.log("User-facing label: Safari (actionable)");
+      console.log(`User-facing label: ${ux.label}`);
       console.log("Show activate/navigate/screenshot only when the exact session capability bit is true.");
       console.log(
         `Runtime actions: activate=${session.capabilities.activate}, navigate=${session.capabilities.navigate}, screenshot=${session.capabilities.screenshot}`
@@ -297,16 +335,23 @@ function describeSession(session: BridgeSession): void {
       break;
     case "chrome-readonly":
       if (session.attach.mode === "direct") {
-        console.log("User-facing label: Chrome (direct, read-only)");
+        console.log(`User-facing label: ${ux.label}`);
         console.log("Show inspect/resume UI only. Hide activate/navigate/screenshot.");
       } else {
-        console.log("User-facing label: Chrome (shared tab, read-only)");
+        console.log(`User-facing label: ${ux.label}`);
         console.log("Describe this as a shared-tab session, not a browser-wide Chrome session.");
+        console.log("Derive relay behavior from attach.mode=relay plus the returned semantics fields.");
+        console.log(`Inspect semantics: ${session.semantics.inspect}`);
+        console.log("After resume, trust the returned session metadata for the current shared-tab grant.");
         console.log(`Resume semantics: ${session.semantics.resume}`);
-        if (session.attach.resumeRequiresUserGesture) {
-          console.log(
-            "Resume prompt: That shared-tab grant is no longer active. Click the relay extension again on the original tab, then retry resume."
-          );
+        console.log(
+          `Tab reference semantics: windowIndex=${session.semantics.tabReference.windowIndex}, tabIndex=${session.semantics.tabReference.tabIndex}`
+        );
+        if (ux.scopeNote) {
+          console.log(ux.scopeNote);
+        }
+        if (ux.prompt) {
+          console.log(`Resume prompt: ${ux.prompt}`);
         }
       }
       break;
@@ -367,12 +412,47 @@ async function main(): Promise<void> {
     return;
   }
 
+  const operation = resumeSessionId ? "resumeSession" : "attach";
   const session = await attachOrResume(route);
   assertSchemaVersion(session.schemaVersion);
-  describeSession(session);
+  describeSession(session, operation);
 }
 
 main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error);
+  if (error instanceof BridgeHttpError) {
+    const bridgeError = error.payload.error;
+    const relay = bridgeError.details?.relay;
+    const ux = interpretBrowserAttachUxFromError({ details: bridgeError.details });
+    if (relay?.branch) {
+      console.error(`Relay failure branch: ${relay.branch}`);
+    }
+    if (relay?.phase) {
+      console.error(`Relay failure phase: ${relay.phase}`);
+    }
+    if (ux?.state) {
+      console.error(`Relay UX state: ${ux.state}`);
+    }
+    if (ux?.relayFailureCategory) {
+      console.error(`Relay failure category: ${ux.relayFailureCategory}`);
+    }
+    if (typeof ux?.userActionRequired === "boolean") {
+      console.error(`Relay failure user action required: ${ux.userActionRequired}`);
+    }
+    if (typeof ux?.retryable === "boolean") {
+      console.error(`Relay failure retryable: ${ux.retryable}`);
+    }
+    if (ux?.retryGuidance) {
+      console.error(ux.retryGuidance);
+    }
+    if (ux?.scopeNote) {
+      console.error(ux.scopeNote);
+    }
+    if (ux?.prompt) {
+      console.error(`Relay user prompt: ${ux.prompt}`);
+    }
+    console.error(bridgeError.message);
+  } else {
+    console.error(error instanceof Error ? error.message : error);
+  }
   process.exitCode = 1;
 });

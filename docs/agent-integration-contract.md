@@ -95,6 +95,49 @@ These are the most important stable fields for agent consumers.
 - `diagnostics.attach.relay.state`
 - `diagnostics.attach.relay.blockers[]`
 
+### Chrome relay failure contract
+
+When a consumer explicitly chooses Chrome relay and attach or resume fails, the bridge also exposes an additive transport-neutral error envelope on top of the normal error `code`, `message`, and `statusCode` fields.
+
+Canonical artifacts:
+
+- schema: [`../schema/chrome-relay-error.schema.json`](../schema/chrome-relay-error.schema.json)
+- example: [`../examples/error.chrome-relay-share-required.example.json`](../examples/error.chrome-relay-share-required.example.json)
+
+Stable fields to branch on:
+
+- `error.details.context.browser = "chrome"`
+- `error.details.context.attachMode = "relay"`
+- `error.details.context.operation = "attach" | "resumeSession"`
+- `error.details.relay.branch`
+- `error.details.relay.phase`
+- `error.details.relay.sharedTabScope = "current-shared-tab"`
+- `error.details.relay.retryable`
+- `error.details.relay.userActionRequired`
+
+Optional additive fields may appear when relevant, including `currentSharedTabMatches`, `resumable`, `resumeRequiresUserGesture`, `expiresAt`, and `sessionId`.
+
+Treat this contract as additive and transport-neutral:
+
+- CLI and HTTP should emit the same structured relay details for the same failure branch.
+- Consumers should ignore unknown future relay detail fields unless they explicitly depend on them.
+- The relay error contract does not change the higher-level browser contract: Chrome relay remains a shared-tab read-only path and must not be treated as browser-wide Chrome access.
+
+Recommended relay branching order:
+
+1. Prefer `error.details.relay.branch` for the primary UX path when it is present.
+2. Use `error.details.relay.userActionRequired` to keep the next step explicitly user-facing.
+3. Use `error.details.relay.retryable` to decide whether to offer a targeted retry on the same relay path or stop retrying.
+4. Keep `error.details.relay.sharedTabScope = "current-shared-tab"` visible whenever scope confusion is possible; it is a shared-tab read-only limitation, not browser-wide Chrome access.
+
+High-signal relay UX categories:
+
+- `branch = "share-tab"` or `"share-original-tab-again"` -> `share required`
+- `userActionRequired = true` -> `user action required`
+- `retryable = true` -> `retryable relay failure`
+- `retryable = false` -> `non-retryable relay failure`
+- `branch = "use-current-shared-tab"` -> `shared-tab read-only scope limitation`
+
 ### Session behavior
 
 - `session.schemaVersion`
@@ -222,6 +265,12 @@ These codes should usually produce direct user instructions:
 - `relay_share_required` → share the current tab, then retry
 - `relay_no_shared_tab` → share a tab first, then retry
 - `relay_session_expired` → share the original tab again, then retry resume
+
+When structured `error.details.relay.*` metadata is present, prefer it over blocker-only wording because it distinguishes:
+
+- share required vs general user action required
+- retryable vs non-retryable relay failure
+- current shared-tab scope limitations vs generic relay attach failure
 
 When an exact code is unknown, fall back to the blocker `message` and keep the wording honest.
 

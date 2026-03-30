@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local-browser-bridge/schema/chrome-relay-error.schema.json",
+  "title": "Local Browser Bridge Chrome Relay Error Contract",
+  "description": "Transport-neutral error envelope for Chrome relay attach/resume failures. The same payload shape is emitted by the CLI and HTTP surfaces.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["error"],
+  "properties": {
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "statusCode", "details"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "relay_probe_not_configured",
+            "relay_probe_invalid",
+            "relay_extension_not_installed",
+            "relay_extension_disconnected",
+            "relay_toolbar_not_clicked",
+            "relay_share_required",
+            "relay_no_shared_tab",
+            "relay_attach_target_out_of_scope",
+            "relay_attach_scope_expired",
+            "relay_transport_not_implemented"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "statusCode": {
+          "type": "integer",
+          "minimum": 400,
+          "maximum": 599
+        },
+        "details": {
+          "$ref": "#/$defs/chromeRelayErrorDetails"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "operation": {
+      "type": "string",
+      "enum": ["attach", "resumeSession"]
+    },
+    "branch": {
+      "type": "string",
+      "enum": [
+        "click-toolbar-button",
+        "share-tab",
+        "share-original-tab-again",
+        "use-current-shared-tab",
+        "install-extension",
+        "reconnect-extension",
+        "configure-relay-probe",
+        "repair-relay-probe",
+        "unsupported"
+      ]
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["diagnostics", "target-selection", "session-precondition", "shared-tab-match"]
+    },
+    "chromeRelayErrorDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context", "relay"],
+      "properties": {
+        "context": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["browser", "attachMode", "operation"],
+          "properties": {
+            "browser": { "const": "chrome" },
+            "attachMode": { "const": "relay" },
+            "operation": { "$ref": "#/$defs/operation" }
+          }
+        },
+        "relay": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["branch", "retryable", "userActionRequired", "phase", "sharedTabScope"],
+          "properties": {
+            "branch": { "$ref": "#/$defs/branch" },
+            "retryable": { "type": "boolean" },
+            "userActionRequired": { "type": "boolean" },
+            "phase": { "$ref": "#/$defs/phase" },
+            "sharedTabScope": { "const": "current-shared-tab" },
+            "currentSharedTabMatches": { "type": "boolean" },
+            "resumable": { "type": "boolean" },
+            "resumeRequiresUserGesture": { "type": "boolean" },
+            "expiresAt": { "type": "string", "format": "date-time" },
+            "sessionId": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}

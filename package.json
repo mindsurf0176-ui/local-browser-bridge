@@ -5,6 +5,12 @@
   "license": "MIT",
   "private": true,
   "type": "commonjs",
+  "main": "dist/src/index.js",
+  "exports": {
+    ".": "./dist/src/index.js",
+    "./browser-attach-ux-helper": "./dist/src/browser-attach-ux-helper.js",
+    "./chrome-relay-error-helper": "./dist/src/chrome-relay-error-helper.js"
+  },
   "bin": {
     "local-browser-bridge": "dist/src/cli.js",
     "safari-attach-tool": "dist/src/cli.js",

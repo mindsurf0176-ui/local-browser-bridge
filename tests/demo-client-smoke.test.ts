@@ -175,6 +175,15 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
+function writeStubJson(response: ServerResponse, payload: unknown, successStatusCode: number): void {
+  const statusCode =
+    payload && typeof payload === "object" && "error" in payload && payload.error && typeof payload.error === "object" && "statusCode" in payload.error
+      ? Number(payload.error.statusCode)
+      : successStatusCode;
+  response.writeHead(statusCode, { "content-type": "application/json" });
+  response.end(JSON.stringify(payload));
+}
+
 async function withStubBridge<T>(state: StubState, run: (baseUrl: string) => Promise<T>): Promise<T> {
   const server = createServer(async (request: IncomingMessage, response: ServerResponse) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -199,14 +208,12 @@ async function withStubBridge<T>(state: StubState, run: (baseUrl: string) => Pro
         body && typeof body === "object" && "attach" in body && body.attach && typeof body.attach === "object" && "mode" in body.attach
           ? String(body.attach.mode)
           : "direct";
-      response.writeHead(201, { "content-type": "application/json" });
-      response.end(JSON.stringify(state.attachResponseByMode[attachMode]));
+      writeStubJson(response, state.attachResponseByMode[attachMode], 201);
       return;
     }
 
     if (request.method === "POST" && url.pathname.startsWith("/v1/sessions/") && url.pathname.endsWith("/resume")) {
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify(state.resumeResponse));
+      writeStubJson(response, state.resumeResponse, 200);
       return;
     }
 
@@ -314,6 +321,7 @@ test("http demo smoke: chrome-direct route renders read-only browser path and no
     assert.match(result.stdout, /Attaching via Chrome \(direct, read-only\)/);
     assert.match(result.stdout, /Session kind: chrome-readonly/);
     assert.match(result.stdout, /Session attach mode: direct/);
+    assert.match(result.stdout, /Flow state: attached/);
     assert.match(result.stdout, /User-facing label: Chrome \(direct, read-only\)/);
     assert.match(result.stdout, /Show inspect\/resume UI only\. Hide activate\/navigate\/screenshot\./);
 
@@ -357,9 +365,20 @@ test("http demo smoke: chrome-relay route renders shared-tab labeling and relay 
     assert.match(result.stdout, /Resuming saved session saved-relay-session for Chrome \(shared tab, read-only\)/);
     assert.match(result.stdout, /Session kind: chrome-readonly/);
     assert.match(result.stdout, /Session attach mode: relay/);
+    assert.match(result.stdout, /Flow state: resumed/);
     assert.match(result.stdout, /User-facing label: Chrome \(shared tab, read-only\)/);
     assert.match(result.stdout, /Describe this as a shared-tab session, not a browser-wide Chrome session\./);
+    assert.match(result.stdout, /Derive relay behavior from attach\.mode=relay plus the returned semantics fields\./);
+    assert.match(result.stdout, /Inspect semantics: shared-tab-only/);
     assert.match(result.stdout, /Resume semantics: current-shared-tab/);
+    assert.match(
+      result.stdout,
+      /Tab reference semantics: windowIndex=synthetic-shared-tab-position, tabIndex=synthetic-shared-tab-position/
+    );
+    assert.match(
+      result.stdout,
+      /Scope note: Chrome relay is still limited to the currently shared tab and remains read-only\./
+    );
     assert.match(
       result.stdout,
       /Resume prompt: That shared-tab grant is no longer active\. Click the relay extension again on the original tab, then retry resume\./
@@ -369,6 +388,64 @@ test("http demo smoke: chrome-relay route renders shared-tab labeling and relay 
       state.requests.map((entry) => `${entry.method} ${entry.url}`),
       ["GET /v1/capabilities", "GET /v1/diagnostics?browser=chrome", "POST /v1/sessions/saved-relay-session/resume"]
     );
+  });
+});
+
+test("http demo smoke: relay attach failures surface structured relay branch prompts", async () => {
+  const state: StubState = {
+    capabilities: createCapabilitiesPayload(),
+    diagnosticsByBrowser: {
+      chrome: createChromeDiagnostics({
+        direct: { ready: true, state: "ready" },
+        relay: { ready: true, state: "ready" }
+      }),
+      safari: createSafariDiagnostics()
+    },
+    attachResponseByMode: {
+      direct: createChromeDirectSession(),
+      relay: {
+        error: {
+          code: "relay_attach_target_out_of_scope",
+          message: "Chrome relay attach is scoped to the currently shared tab only; use the front tab target or omit an explicit target.",
+          statusCode: 409,
+          details: {
+            context: { browser: "chrome", attachMode: "relay", operation: "attach" },
+            relay: {
+              branch: "use-current-shared-tab",
+              retryable: true,
+              userActionRequired: true,
+              phase: "target-selection",
+              sharedTabScope: "current-shared-tab",
+              currentSharedTabMatches: false
+            }
+          }
+        }
+      }
+    },
+    requests: []
+  };
+
+  await withStubBridge(state, async (baseUrl) => {
+    try {
+      await runDemo("chrome-relay", { baseUrl });
+      assert.fail("expected the demo to exit with an error");
+    } catch (error) {
+      const execError = error as NodeJS.ErrnoException & { stderr?: string; code?: number };
+      assert.equal(execError.code, 1);
+      assert.match(execError.stderr ?? "", /Relay failure branch: use-current-shared-tab/);
+      assert.match(execError.stderr ?? "", /Relay failure phase: target-selection/);
+      assert.match(execError.stderr ?? "", /Relay UX state: user-action-required/);
+      assert.match(execError.stderr ?? "", /Relay failure category: shared-tab-read-only-scope-limitation/);
+      assert.match(execError.stderr ?? "", /Relay failure retryable: true/);
+      assert.match(
+        execError.stderr ?? "",
+        /Scope note: Chrome relay is still limited to the currently shared tab and remains read-only\./
+      );
+      assert.match(
+        execError.stderr ?? "",
+        /Relay user prompt: Chrome relay attach only works for the tab that is currently shared\. Use the shared tab or share a different tab first\./
+      );
+    }
   });
 });
 

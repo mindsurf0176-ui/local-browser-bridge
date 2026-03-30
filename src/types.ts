@@ -49,6 +49,53 @@ export type BrowserAttachBlockerCode =
   | "relay_attach_scope_expired"
   | "relay_transport_not_implemented";
 
+export type ChromeRelayFailureOperation = "attach" | "resumeSession";
+
+export type ChromeRelayFailureBranch =
+  | "click-toolbar-button"
+  | "share-tab"
+  | "share-original-tab-again"
+  | "use-current-shared-tab"
+  | "install-extension"
+  | "reconnect-extension"
+  | "configure-relay-probe"
+  | "repair-relay-probe"
+  | "unsupported";
+
+export type ChromeRelayFailurePhase =
+  | "diagnostics"
+  | "target-selection"
+  | "session-precondition"
+  | "shared-tab-match";
+
+export type ChromeRelaySharedTabScope = "current-shared-tab";
+
+export interface ChromeRelayErrorContext {
+  browser: "chrome";
+  attachMode: "relay";
+  operation: ChromeRelayFailureOperation;
+}
+
+export interface ChromeRelayErrorRelayDetails {
+  branch: ChromeRelayFailureBranch;
+  retryable: boolean;
+  userActionRequired: boolean;
+  phase: ChromeRelayFailurePhase;
+  sharedTabScope: ChromeRelaySharedTabScope;
+  currentSharedTabMatches?: boolean;
+  resumable?: boolean;
+  resumeRequiresUserGesture?: boolean;
+  expiresAt?: string;
+  sessionId?: string;
+}
+
+export interface ChromeRelayErrorDetails {
+  context: ChromeRelayErrorContext;
+  relay: ChromeRelayErrorRelayDetails;
+}
+
+export type BridgeErrorDetails = Record<string, any>;
+
 export interface TabIdentity {
   signature: string;
   urlKey: string;
@@ -454,4 +501,13 @@ export interface BrowserAdapter {
   resolveTab(target: BrowserTabTarget): Promise<TabMetadata>;
   performSessionAction(action: BrowserSessionAction): Promise<SessionActionResult>;
   getDiagnostics(): Promise<BrowserDiagnostics>;
+}
+
+export interface ErrorPayload<TDetails = BridgeErrorDetails> {
+  error: {
+    code: string;
+    message: string;
+    statusCode: number;
+    details?: TDetails;
+  };
 }

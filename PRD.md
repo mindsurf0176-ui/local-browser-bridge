@@ -406,6 +406,31 @@ The product must:
 - return machine-readable errors
 - use stable error codes where practical
 - allow consumers to distinguish validation issues, unsupported actions, and runtime failures
+- keep transport-neutral structured error details aligned across CLI and local HTTP when the same failure branch is being reported
+
+#### 11.8.1 Chrome relay structured failure contract
+
+For Chrome relay attach/resume failures, the product should expose an additive structured error contract that sits under the normal error envelope rather than replacing it.
+
+Requirements:
+
+- the canonical schema and example should be published as repository artifacts, not only described in prose
+- the contract should remain consumer-neutral and transport-neutral so shells, desktop apps, coding agents, and custom clients can branch on the same fields
+- the contract should be additive so existing consumers can continue keying off `error.code` / `statusCode` while newer consumers branch on richer relay details
+- the contract must preserve truthful scope signaling: relay errors describe a shared-tab path only and must not imply browser-wide Chrome access
+
+The canonical relay-specific fields are:
+
+- `error.details.context.browser = "chrome"`
+- `error.details.context.attachMode = "relay"`
+- `error.details.context.operation = "attach" | "resumeSession"`
+- `error.details.relay.branch`
+- `error.details.relay.phase`
+- `error.details.relay.sharedTabScope = "current-shared-tab"`
+- `error.details.relay.retryable`
+- `error.details.relay.userActionRequired`
+
+Optional additive relay detail fields may include `currentSharedTabMatches`, `resumable`, `resumeRequiresUserGesture`, `expiresAt`, and `sessionId` when those facts are relevant to the failure path.
 
 ### 11.9 Session storage
 

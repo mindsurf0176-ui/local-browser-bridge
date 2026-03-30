@@ -1,0 +1,21 @@
+{
+  "error": {
+    "code": "relay_share_required",
+    "message": "The relay extension is connected, but the current tab still needs to be explicitly shared.",
+    "statusCode": 503,
+    "details": {
+      "context": {
+        "browser": "chrome",
+        "attachMode": "relay",
+        "operation": "attach"
+      },
+      "relay": {
+        "branch": "share-tab",
+        "retryable": true,
+        "userActionRequired": true,
+        "phase": "diagnostics",
+        "sharedTabScope": "current-shared-tab"
+      }
+    }
+  }
+}

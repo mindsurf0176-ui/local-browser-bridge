@@ -1128,7 +1128,7 @@ test("chrome relay attach creates a read-only tab-scoped session and resumes whe
         url: "https://example.com/shared"
       }
     },
-    async () => {
+    async (statePath) => {
       const service = new AttachService({
         store: new SessionStore({ filePath: resolve(baseDir, "sessions.json") })
       });
@@ -1152,11 +1152,109 @@ test("chrome relay attach creates a read-only tab-scoped session and resumes whe
       assert.equal(session.tab.url, "https://example.com/shared");
       assert.equal(session.target.type, "signature");
 
+      await writeFile(
+        statePath,
+        JSON.stringify(
+          {
+            version: "1.1.0",
+            updatedAt: "2026-03-28T11:30:00.000Z",
+            extensionInstalled: true,
+            connected: true,
+            resumable: false,
+            resumeRequiresUserGesture: false,
+            expiresAt: "2099-03-28T13:00:00.000Z",
+            sharedTab: {
+              id: "tab-123",
+              title: "Relay Example",
+              url: "https://example.com/shared"
+            }
+          },
+          null,
+          2
+        ),
+        "utf8"
+      );
+
       const resumed = await service.resumeSession(session.id);
       assert.equal(resumed.resolution.strategy, "signature");
       assert.equal(resumed.resolution.attachMode, "relay");
       assert.equal(resumed.resolution.semantics, "current-shared-tab");
       assert.equal(resumed.tab.url, "https://example.com/shared");
+      assert.equal(resumed.session.kind, "chrome-readonly");
+      assert.equal(resumed.session.attach.mode, "relay");
+      assert.equal(resumed.session.attach.source, "extension-relay");
+      assert.equal(resumed.session.attach.scope, "tab");
+      assert.equal(resumed.session.attach.trustedAt, "2026-03-28T11:30:00.000Z");
+      assert.equal(resumed.session.attach.resumable, false);
+      assert.equal(resumed.session.attach.resumeRequiresUserGesture, false);
+      assert.equal(resumed.session.attach.expiresAt, "2099-03-28T13:00:00.000Z");
+      assert.equal(resumed.session.semantics.inspect, "shared-tab-only");
+      assert.equal(resumed.session.semantics.resume, "current-shared-tab");
+      assert.equal(resumed.session.tab.title, "Relay Example");
+      assert.equal(resumed.session.frontTab.url, "https://example.com/shared");
+      assert.equal(resumed.session.target.type, "signature");
+      assert.equal(resumed.session.target.url, "https://example.com/shared");
+
+      const refreshed = await service.getSession(session.id);
+      assert.equal(refreshed.attach.trustedAt, "2026-03-28T11:30:00.000Z");
+      assert.equal(refreshed.attach.expiresAt, "2099-03-28T13:00:00.000Z");
+      assert.equal(refreshed.tab.title, "Relay Example");
+    }
+  );
+});
+
+test("chrome relay resume failures expose structured relay details for consumer branching", async () => {
+  const baseDir = resolve(process.cwd(), ".tmp-tests", "chrome-relay-resume-errors");
+  await rm(baseDir, { recursive: true, force: true });
+  await mkdir(baseDir, { recursive: true });
+
+  await withChromeRelayStateFixture(
+    {
+      version: "1.1.0",
+      updatedAt: "2026-03-28T11:00:00.000Z",
+      extensionInstalled: true,
+      connected: true,
+      resumable: false,
+      resumeRequiresUserGesture: true,
+      expiresAt: "2099-03-28T12:00:00.000Z",
+      sharedTab: {
+        id: "tab-123",
+        title: "Relay Example",
+        url: "https://example.com/shared"
+      }
+    },
+    async () => {
+      const service = new AttachService({
+        store: new SessionStore({ filePath: resolve(baseDir, "sessions.json") })
+      });
+
+      const session = await service.attach("chrome", {
+        target: { type: "front" },
+        attach: { mode: "relay" }
+      });
+
+      await assert.rejects(
+        () => service.resumeSession(session.id),
+        (error: unknown) => {
+          assert.ok(error instanceof AppError);
+          assert.equal(error.code, "relay_share_required");
+          assert.equal(error.statusCode, 409);
+          assert.deepEqual(error.details?.context, {
+            browser: "chrome",
+            attachMode: "relay",
+            operation: "resumeSession"
+          });
+          assert.equal(error.details?.relay?.branch, "share-original-tab-again");
+          assert.equal(error.details?.relay?.retryable, true);
+          assert.equal(error.details?.relay?.userActionRequired, true);
+          assert.equal(error.details?.relay?.phase, "session-precondition");
+          assert.equal(error.details?.relay?.sharedTabScope, "current-shared-tab");
+          assert.equal(error.details?.relay?.resumable, false);
+          assert.equal(error.details?.relay?.resumeRequiresUserGesture, true);
+          assert.equal(error.details?.relay?.sessionId, session.id);
+          return true;
+        }
+      );
     }
   );
 });
@@ -1176,6 +1274,16 @@ test("chrome relay attach fails with relay-aware errors for unshared or out-of-s
           assert.ok(error instanceof AppError);
           assert.equal(error.code, "relay_share_required");
           assert.equal(error.statusCode, 503);
+          assert.deepEqual(error.details?.context, {
+            browser: "chrome",
+            attachMode: "relay",
+            operation: "attach"
+          });
+          assert.equal(error.details?.relay?.branch, "share-tab");
+          assert.equal(error.details?.relay?.retryable, true);
+          assert.equal(error.details?.relay?.userActionRequired, true);
+          assert.equal(error.details?.relay?.phase, "diagnostics");
+          assert.equal(error.details?.relay?.sharedTabScope, "current-shared-tab");
           return true;
         }
       );
@@ -1204,6 +1312,17 @@ test("chrome relay attach fails with relay-aware errors for unshared or out-of-s
           assert.ok(error instanceof AppError);
           assert.equal(error.code, "relay_attach_target_out_of_scope");
           assert.equal(error.statusCode, 409);
+          assert.deepEqual(error.details?.context, {
+            browser: "chrome",
+            attachMode: "relay",
+            operation: "attach"
+          });
+          assert.equal(error.details?.relay?.branch, "use-current-shared-tab");
+          assert.equal(error.details?.relay?.retryable, true);
+          assert.equal(error.details?.relay?.userActionRequired, true);
+          assert.equal(error.details?.relay?.phase, "target-selection");
+          assert.equal(error.details?.relay?.sharedTabScope, "current-shared-tab");
+          assert.equal(error.details?.relay?.currentSharedTabMatches, false);
           return true;
         }
       );
@@ -1478,4 +1597,66 @@ test("http and cli surfaces expose chrome read-only details", async () => {
       }
     );
   });
+});
+
+test("chrome relay CLI and HTTP errors expose the same structured failure details", async () => {
+  await withChromeRelayStateFixture(
+    {
+      extensionInstalled: true,
+      connected: true,
+      shareRequired: true
+    },
+    async () => {
+      const service = new AttachService();
+      const server = createApiServer(service);
+      await new Promise<void>((resolvePromise, reject) =>
+        server.listen(0, "127.0.0.1", (error?: Error) => (error ? reject(error) : resolvePromise()))
+      );
+
+      const address = server.address();
+      assert.ok(address && typeof address === "object");
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+
+      try {
+        const httpResponse = await fetch(`${baseUrl}/v1/attach`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ browser: "chrome", attach: { mode: "relay" } })
+        });
+        assert.equal(httpResponse.status, 503);
+        const httpPayload = (await httpResponse.json()) as {
+          error: {
+            code: string;
+            details?: { relay?: { branch?: string; phase?: string; sharedTabScope?: string }; context?: { operation?: string } };
+          };
+        };
+        assert.equal(httpPayload.error.code, "relay_share_required");
+        assert.equal(httpPayload.error.details?.context?.operation, "attach");
+        assert.equal(httpPayload.error.details?.relay?.branch, "share-tab");
+        assert.equal(httpPayload.error.details?.relay?.phase, "diagnostics");
+        assert.equal(httpPayload.error.details?.relay?.sharedTabScope, "current-shared-tab");
+
+        const cliResult = await withCapturedStreams(async () => {
+          try {
+            await runCli(["attach", "--browser", "chrome", "--attach-mode", "relay"], service);
+          } catch (error) {
+            const { payload } = toErrorPayload(error);
+            process.stderr.write(JSON.stringify(payload, null, 2) + "\n");
+          }
+        });
+        const cliPayload = JSON.parse(cliResult.stderr) as {
+          error: {
+            code: string;
+            details?: { relay?: { branch?: string; phase?: string; sharedTabScope?: string }; context?: { operation?: string } };
+          };
+        };
+        assert.equal(cliPayload.error.code, httpPayload.error.code);
+        assert.deepEqual(cliPayload.error.details, httpPayload.error.details);
+      } finally {
+        await new Promise<void>((resolvePromise, reject) =>
+          server.close((error) => (error ? reject(error) : resolvePromise()))
+        );
+      }
+    }
+  );
 });
