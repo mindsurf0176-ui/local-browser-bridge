@@ -145,6 +145,14 @@ npm install
 npm run build
 ```
 
+Install from git as a dependency:
+
+```bash
+npm install <git-url>#<commit-ish>
+```
+
+The package uses `prepare`, so a git install builds `dist/` during installation and exposes the same stable root helper surface plus declarations through `local-browser-bridge`.
+
 ## Consumer surfaces and examples
 
 ### CLI

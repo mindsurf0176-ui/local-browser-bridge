@@ -5,12 +5,29 @@
   "license": "MIT",
   "private": true,
   "type": "commonjs",
-  "main": "dist/src/index.js",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
-    ".": "./dist/src/index.js",
-    "./browser-attach-ux-helper": "./dist/src/browser-attach-ux-helper.js",
-    "./chrome-relay-error-helper": "./dist/src/chrome-relay-error-helper.js"
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "require": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
+    },
+    "./browser-attach-ux-helper": {
+      "types": "./dist/src/browser-attach-ux-helper.d.ts",
+      "require": "./dist/src/browser-attach-ux-helper.js",
+      "default": "./dist/src/browser-attach-ux-helper.js"
+    },
+    "./chrome-relay-error-helper": {
+      "types": "./dist/src/chrome-relay-error-helper.d.ts",
+      "require": "./dist/src/chrome-relay-error-helper.js",
+      "default": "./dist/src/chrome-relay-error-helper.js"
+    }
   },
+  "files": [
+    "dist/**/*",
+    "README.md"
+  ],
   "bin": {
     "local-browser-bridge": "dist/src/cli.js",
     "safari-attach-tool": "dist/src/cli.js",
@@ -19,6 +36,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist .tmp-tests",
+    "prepare": "npm run build",
     "test": "npm run build && node --test dist/tests/**/*.test.js",
     "cli": "node dist/src/cli.js",
     "serve": "node dist/src/cli.js serve",
