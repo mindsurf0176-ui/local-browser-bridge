@@ -16,7 +16,8 @@ If you are new to the repo, start here:
 - **Understand the toolkit surface first:** [src/index.ts](src/index.ts) is the shared consumer entrypoint. It re-exports the transport-neutral helper surface plus the reference CLI/HTTP adapters used by downstream runtimes and clients.
 - **Use the contract artifacts as the source of truth:** start with [docs/agent-integration-contract.md](docs/agent-integration-contract.md), then the machine-readable schemas in [schema/capabilities.schema.json](schema/capabilities.schema.json) and [schema/chrome-relay-error.schema.json](schema/chrome-relay-error.schema.json), plus the example payloads in [examples/](examples/).
 - **Pick a transport only at the edge:** the toolkit exposes the same bridge contract through the JSON CLI and the local HTTP API. Choose whichever fits your runtime; neither is the privileged path.
-- **Copy from runnable consumers when wiring a client:** use [examples/clients/http-consumer.ts](examples/clients/http-consumer.ts), [examples/clients/cli-consumer.ts](examples/clients/cli-consumer.ts), and the end-to-end demo at [examples/clients/http-node.ts](examples/clients/http-node.ts).
+- **Copy from runnable consumers when wiring a client:** use [examples/clients/http-consumer.ts](examples/clients/http-consumer.ts), [examples/clients/cli-consumer.ts](examples/clients/cli-consumer.ts), the Codex-style wrapper at [examples/clients/codex-consumer.ts](examples/clients/codex-consumer.ts), the Claude Code-style wrapper at [examples/clients/claude-code-tool.ts](examples/clients/claude-code-tool.ts), and the end-to-end demo at [examples/clients/http-node.ts](examples/clients/http-node.ts).
+- **Treat consumer wrappers as convenience only:** Codex-facing helpers such as `normalizeCodexRoute(...)`, `connectCodexViaCli(...)`, and `connectCodexViaHttp(...)` stay on top of the same agent-agnostic adapter/reference layer.
 
 ## Canonical artifacts and docs
 
@@ -245,7 +246,10 @@ curl -X POST http://127.0.0.1:3000/v1/sessions/<session-id>/resume
 
 See [docs/consuming-the-bridge.md](docs/consuming-the-bridge.md) for fuller CLI and HTTP examples, including the practical HTTP consumer demo at [examples/clients/http-node.ts](examples/clients/http-node.ts).
 For runtime-neutral wrapper patterns across OpenClaw, AWOS, Codex, Claude Code, and custom consumers, including copyable minimal adapter skeletons built on the shared helper surface, see [docs/adapter-patterns.md](docs/adapter-patterns.md).
-If you are importing the toolkit directly instead of shelling out or calling HTTP, start from [src/index.ts](src/index.ts), which re-exports the shared helpers plus the CLI/HTTP reference adapters used in [examples/clients/cli-consumer.ts](examples/clients/cli-consumer.ts) and [examples/clients/http-consumer.ts](examples/clients/http-consumer.ts).
+If you are importing the toolkit directly instead of shelling out or calling HTTP, start from [src/index.ts](src/index.ts), which re-exports the shared helpers plus the CLI/HTTP reference adapters used in [examples/clients/cli-consumer.ts](examples/clients/cli-consumer.ts), [examples/clients/http-consumer.ts](examples/clients/http-consumer.ts), and [examples/clients/codex-consumer.ts](examples/clients/codex-consumer.ts).
+
+For a thin Codex-facing wrapper that still uses the same shared/public toolkit surface, use `normalizeCodexRoute(...)`, `connectCodexViaCli(...)`, or `connectCodexViaHttp(...)` from the package root, then copy from [examples/clients/codex-consumer.ts](examples/clients/codex-consumer.ts).
+For a thin Claude Code-facing wrapper that still uses the same shared/public toolkit surface, use `normalizeClaudeCodeRoute(...)` and `prepareClaudeCodeRoute(...)` from the package root, then copy from [examples/clients/claude-code-tool.ts](examples/clients/claude-code-tool.ts).
 
 Quick copy-paste run for the demo:
 

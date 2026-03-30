@@ -13,6 +13,11 @@
       "require": "./dist/src/index.js",
       "default": "./dist/src/index.js"
     },
+    "./codex": {
+      "types": "./dist/src/codex.d.ts",
+      "require": "./dist/src/codex.js",
+      "default": "./dist/src/codex.js"
+    },
     "./browser-attach-ux-helper": {
       "types": "./dist/src/browser-attach-ux-helper.d.ts",
       "require": "./dist/src/browser-attach-ux-helper.js",

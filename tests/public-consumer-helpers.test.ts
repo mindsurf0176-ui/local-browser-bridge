@@ -5,6 +5,8 @@ import {
   chromeRelayBranchPrompt,
   chromeRelayRetryGuidance,
   chromeRelayScopeNote,
+  connectCodexViaCli,
+  connectCodexViaHttp,
   connectViaBridge,
   createBridgeAdapter,
   createCliBridgeAdapter,
@@ -13,6 +15,9 @@ import {
   interpretBrowserAttachUxFromError,
   interpretBrowserAttachUxFromSession,
   interpretChromeRelayFailure,
+  normalizeClaudeCodeRoute,
+  normalizeCodexRoute,
+  prepareClaudeCodeRoute,
   sessionFromBridgeResult
 } from "../src";
 
@@ -27,6 +32,11 @@ test("public consumer entrypoint re-exports the stable helper surface", () => {
   assert.equal(typeof createBridgeAdapter, "function");
   assert.equal(typeof createHttpBridgeAdapter, "function");
   assert.equal(typeof createCliBridgeAdapter, "function");
+  assert.equal(typeof normalizeCodexRoute, "function");
+  assert.equal(typeof connectCodexViaHttp, "function");
+  assert.equal(typeof connectCodexViaCli, "function");
+  assert.equal(typeof normalizeClaudeCodeRoute, "function");
+  assert.equal(typeof prepareClaudeCodeRoute, "function");
   assert.equal(typeof sessionFromBridgeResult, "function");
   assert.equal(typeof connectViaBridge, "function");
 });

@@ -234,6 +234,8 @@ Use the bridge as a deterministic local dependency for a coding agent:
 - keep relay failures structured by reading `error.details` instead of parsing prose output
 - avoid presenting Chrome relay as browser-wide inspection access
 
+If you want that shape as an actual thin helper instead of re-wiring the route mapping every time, import `normalizeCodexRoute(...)`, `connectCodexViaCli(...)`, or `connectCodexViaHttp(...)` from the package root. They keep the same route names (`safari`, `chrome-direct`, `chrome-relay`) and only layer Codex-oriented route normalization plus transport setup on top of the shared adapter/reference helpers.
+
 Minimal adapter skeleton:
 
 ```ts
@@ -269,6 +271,10 @@ export async function runAgentStep(adapter: BridgeAdapter, request: {
 ```
 
 ### Claude Code-style tool wrapper
+
+Use the bridge as a local tool wrapper with explicit user-facing prompts.
+
+If you want the documented pattern as an actual thin shared-tool helper instead of copy-pasting the skeleton, import `normalizeClaudeCodeRoute(...)` and `prepareClaudeCodeRoute(...)` from the package root. They keep the same route names (`safari`, `chrome-direct`, `chrome-relay`), run diagnostics before attach/resume, short-circuit blocked routes into a prompt, and otherwise return the same shared-tool connection/session UX shape.
 
 Use the bridge as a local tool wrapper with explicit user-facing prompts:
 

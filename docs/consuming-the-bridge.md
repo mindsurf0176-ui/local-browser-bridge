@@ -127,6 +127,21 @@ The first two examples use the shared public helper path directly:
 - `connectViaBridge(...)` for the attach vs resume flow
 - `interpretBrowserAttachUxFromError(...)` for transport-neutral failure messaging
 
+For a Codex-style route wrapper on the same shared stack, the package root also exposes:
+
+- `normalizeCodexRoute(...)` for `safari | chrome-direct | chrome-relay` route names
+- `connectCodexViaCli(...)` for a one-call CLI adapter + connect flow
+- `connectCodexViaHttp(...)` for a one-call HTTP adapter + connect flow
+
+See [`../examples/clients/codex-consumer.ts`](../examples/clients/codex-consumer.ts) for a runnable CLI-oriented example that stays on the same shared toolkit surface.
+
+For a Claude Code-style consumer wrapper, the package root also exposes:
+
+- `normalizeClaudeCodeRoute(...)` for `safari | chrome-direct | chrome-relay` route names
+- `prepareClaudeCodeRoute(...)` for the explicit diagnostics-first, attach-or-resume, prompt-oriented wrapper flow
+
+See [`../examples/clients/claude-code-tool.ts`](../examples/clients/claude-code-tool.ts) for a runnable CLI-oriented example that stays on the same shared toolkit surface.
+
 They intentionally keep the same route choices across transports: `safari`, `chrome-direct`, and `chrome-relay`, plus optional resume through `LOCAL_BROWSER_BRIDGE_SESSION_ID`.
 
 ## Chrome relay parity example

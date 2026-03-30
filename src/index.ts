@@ -35,6 +35,16 @@ export {
 } from "./reference-adapter";
 
 export {
+  connectCodexViaCli,
+  connectCodexViaHttp,
+  normalizeCodexRoute,
+  type CodexRouteInput,
+  type CodexRouteName,
+  type ConnectCodexViaCliOptions,
+  type ConnectCodexViaHttpOptions
+} from "./codex";
+
+export {
   createHttpBridgeAdapter,
   type CreateHttpBridgeAdapterOptions,
   type HttpAttachEnvelope,
@@ -53,6 +63,14 @@ export {
   type CliBridgeExecutor,
   type CreateCliBridgeAdapterOptions
 } from "./cli-reference-adapter";
+
+export {
+  normalizeClaudeCodeRoute,
+  prepareClaudeCodeRoute,
+  type ClaudeCodePreparedRoute,
+  type ClaudeCodeRouteInput,
+  type ClaudeCodeRouteName
+} from "./claude-code";
 
 export type {
   AttachmentSession,

@@ -26,6 +26,10 @@ test("package metadata exposes built JS and declarations for git consumption", (
     typeof packageJson.exports?.["./browser-attach-ux-helper"] === "string"
       ? undefined
       : packageJson.exports?.["./browser-attach-ux-helper"];
+  const codexExport =
+    typeof packageJson.exports?.["./codex"] === "string"
+      ? undefined
+      : packageJson.exports?.["./codex"];
   const relayHelperExport =
     typeof packageJson.exports?.["./chrome-relay-error-helper"] === "string"
       ? undefined
@@ -33,11 +37,13 @@ test("package metadata exposes built JS and declarations for git consumption", (
 
   assert.equal(rootExport?.require, "./dist/src/index.js");
   assert.equal(rootExport?.types, "./dist/src/index.d.ts");
+  assert.equal(codexExport?.types, "./dist/src/codex.d.ts");
   assert.equal(uxHelperExport?.types, "./dist/src/browser-attach-ux-helper.d.ts");
   assert.equal(relayHelperExport?.types, "./dist/src/chrome-relay-error-helper.d.ts");
 
   assert.ok(existsSync(resolve(root, "dist", "src", "index.js")));
   assert.ok(existsSync(resolve(root, "dist", "src", "index.d.ts")));
+  assert.ok(existsSync(resolve(root, "dist", "src", "codex.d.ts")));
   assert.ok(existsSync(resolve(root, "dist", "src", "browser-attach-ux-helper.d.ts")));
   assert.ok(existsSync(resolve(root, "dist", "src", "chrome-relay-error-helper.d.ts")));
 });
@@ -49,6 +55,9 @@ test("package root resolves the stable helper surface from built output", () => 
   assert.equal(typeof publicEntry.createBridgeAdapter, "function");
   assert.equal(typeof publicEntry.createHttpBridgeAdapter, "function");
   assert.equal(typeof publicEntry.createCliBridgeAdapter, "function");
+  assert.equal(typeof publicEntry.normalizeCodexRoute, "function");
+  assert.equal(typeof publicEntry.connectCodexViaCli, "function");
+  assert.equal(typeof publicEntry.connectCodexViaHttp, "function");
   assert.equal(typeof publicEntry.interpretBrowserAttachUxFromSession, "function");
   assert.equal(typeof publicEntry.interpretChromeRelayFailure, "function");
 });

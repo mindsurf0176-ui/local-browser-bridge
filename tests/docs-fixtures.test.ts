@@ -235,9 +235,16 @@ test("consumer sample stays aligned with the stable contract guidance", async ()
   assert.match(consumerGuide, /retryable/);
   assert.match(consumerGuide, /examples\/clients\/http-consumer\.ts/);
   assert.match(consumerGuide, /examples\/clients\/cli-consumer\.ts/);
+  assert.match(consumerGuide, /examples\/clients\/codex-consumer\.ts/);
+  assert.match(consumerGuide, /examples\/clients\/claude-code-tool\.ts/);
   assert.match(consumerGuide, /createHttpBridgeAdapter/);
   assert.match(consumerGuide, /createCliBridgeAdapter/);
   assert.match(consumerGuide, /connectViaBridge/);
+  assert.match(consumerGuide, /normalizeCodexRoute/);
+  assert.match(consumerGuide, /connectCodexViaCli/);
+  assert.match(consumerGuide, /connectCodexViaHttp/);
+  assert.match(consumerGuide, /normalizeClaudeCodeRoute/);
+  assert.match(consumerGuide, /prepareClaudeCodeRoute/);
   assert.doesNotMatch(consumerGuide, /OpenClaw\/browser-style consumer demo/);
 
   assert.match(adapterPatterns, /OpenClaw/);
@@ -254,6 +261,9 @@ test("consumer sample stays aligned with the stable contract guidance", async ()
   assert.match(adapterPatterns, /connectBrowserRoute/);
   assert.match(adapterPatterns, /runBrowserTool/);
   assert.match(adapterPatterns, /runAgentStep/);
+  assert.match(adapterPatterns, /normalizeCodexRoute/);
+  assert.match(adapterPatterns, /connectCodexViaCli/);
+  assert.match(adapterPatterns, /connectCodexViaHttp/);
   assert.match(adapterPatterns, /prepareToolPrompt/);
   assert.match(adapterPatterns, /export async function connect\(/);
 });
