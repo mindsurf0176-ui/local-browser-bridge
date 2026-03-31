@@ -4,6 +4,7 @@ import { normalizeBrowser } from "./browser";
 import { AttachService } from "./service/attach-service";
 import { AppError, toErrorPayload, writeJsonLine } from "./errors";
 import { buildTabTarget } from "./target";
+import { connectConnectionRoute, doctorConnectionRoute, normalizeConnectionRouteName } from "./connection-ux";
 
 function printUsage(): void {
   process.stdout.write(
@@ -18,6 +19,8 @@ function printUsage(): void {
       "  local-browser-bridge screenshot [--browser safari|chrome] [--window-index 1 --tab-index 2 | --signature <signature>] [--output <path>]",
       "  local-browser-bridge capabilities [--browser safari|chrome]",
       "  local-browser-bridge diagnostics [--browser safari|chrome]",
+      "  local-browser-bridge doctor --route safari|chrome-direct|chrome-relay [--session-id <session-id>]",
+      "  local-browser-bridge connect --route safari|chrome-direct|chrome-relay [--session-id <session-id>]",
       "  local-browser-bridge sessions",
       "  local-browser-bridge session --id <session-id>",
       "  local-browser-bridge resume --id <session-id>",
@@ -73,6 +76,10 @@ function readRequiredFlag(args: string[], name: string, code: string): string {
   }
 
   return value;
+}
+
+function readRequiredRoute(args: string[]) {
+  return normalizeConnectionRouteName(readRequiredFlag(args, "--route", "missing_route"));
 }
 
 function writeJson(payload: unknown): void {
@@ -145,6 +152,26 @@ export async function runCli(args: string[], service = new AttachService()): Pro
   if (command === "diagnostics") {
     const browser = normalizeBrowser(readFlag(args, "--browser"));
     writeJson({ diagnostics: await service.diagnostics(browser) });
+    return;
+  }
+
+  if (command === "doctor") {
+    writeJson(
+      await doctorConnectionRoute(service, {
+        route: readRequiredRoute(args),
+        sessionId: readFlag(args, "--session-id")
+      })
+    );
+    return;
+  }
+
+  if (command === "connect") {
+    writeJson(
+      await connectConnectionRoute(service, {
+        route: readRequiredRoute(args),
+        sessionId: readFlag(args, "--session-id")
+      })
+    );
     return;
   }
 

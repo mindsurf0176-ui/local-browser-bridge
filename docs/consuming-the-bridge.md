@@ -85,6 +85,170 @@ Resume a saved session later:
 local-browser-bridge resume --id <session-id>
 ```
 
+## CLI-first connection UX
+
+For generic agent wrappers that want one route-based handshake instead of stitching together `diagnostics` + `attach` manually, use the new CLI-first flow:
+
+```bash
+local-browser-bridge doctor --route safari
+local-browser-bridge doctor --route chrome-direct
+local-browser-bridge doctor --route chrome-relay
+local-browser-bridge connect --route safari
+local-browser-bridge connect --route chrome-relay
+local-browser-bridge connect --route chrome-relay --session-id <session-id>
+```
+
+Use the published `local-browser-bridge` executable for this flow. `npm run cli -- ...` is only the repo-checkout shortcut for invoking that same CLI while developing in this repository.
+
+These commands always return JSON with:
+
+- `ok`, `summary`, and `nextStep` for machine-readable orchestration
+- `outcome`, `status`, `category`, and optional `reason` for MCP-aligned top-level branching
+- `route`, `operation`, and `routeUx` for explicit route labeling
+- `session` and `sessionUx` on successful `connect`
+- `error` and `errorUx` on failed `connect`
+
+Route semantics stay explicit:
+
+- `safari` is the actionable path when diagnostics are ready
+- `chrome-direct` is still read-only in this phase
+- `chrome-relay` is still read-only and only covers the currently shared tab
+
+The smallest copyable subprocess wrapper in this repo is [`examples/clients/doctor-connect-wrapper.ts`](../examples/clients/doctor-connect-wrapper.ts). It shells out to `local-browser-bridge doctor --route ...` and `local-browser-bridge connect --route ...`, then emits one concise JSON result for agent shells.
+
+When you copy that wrapper into another project, keep the subprocess target as the installed `local-browser-bridge` bin. The example falls back to the built repo entrypoint only when `dist/src/cli.js` exists locally.
+
+Copy-paste run:
+
+```bash
+npm run build
+node --experimental-strip-types examples/clients/doctor-connect-wrapper.ts safari
+node --experimental-strip-types examples/clients/doctor-connect-wrapper.ts chrome-relay
+
+# optional: resume a saved session on the selected route
+LOCAL_BROWSER_BRIDGE_SESSION_ID=<session-id> \
+  node --experimental-strip-types examples/clients/doctor-connect-wrapper.ts chrome-relay
+```
+
+Installed-package equivalent without the repo example wrapper:
+
+```bash
+local-browser-bridge doctor --route safari
+local-browser-bridge connect --route safari
+```
+
+Minimal wrapper output when relay is blocked:
+
+```json
+{
+  "wrapper": "doctor-connect",
+  "result": {
+    "ok": false,
+    "stage": "doctor",
+    "outcome": "blocked",
+    "status": "blocked",
+    "category": "route-blocked",
+    "reason": {
+      "code": "relay_share_required",
+      "message": "Share the tab first."
+    },
+    "route": "chrome-relay",
+    "label": "Chrome (shared tab, read-only)",
+    "summary": "Chrome (shared tab, read-only) is not ready yet. It remains read-only and only covers the currently shared tab.",
+    "prompt": "Chrome relay only works for a tab you explicitly share. Share the tab first, then retry.",
+    "nextStep": {
+      "action": "fix-blocker"
+    },
+    "readOnly": true,
+    "sharedTabScoped": true
+  }
+}
+```
+
+Minimal wrapper output after a successful Safari connect:
+
+```json
+{
+  "wrapper": "doctor-connect",
+  "result": {
+    "ok": true,
+    "stage": "connect",
+    "outcome": "success",
+    "status": "connected",
+    "category": "session-connected",
+    "route": "safari",
+    "label": "Safari (actionable)",
+    "summary": "Connected Safari (actionable) session session-safari-demo. It is actionable.",
+    "prompt": "Use session session-safari-demo for follow-up actions like activate, navigate, or screenshot.",
+    "readOnly": false,
+    "sharedTabScoped": false,
+    "session": {
+      "id": "session-safari-demo",
+      "kind": "safari-actionable",
+      "canAct": true,
+      "suggestedActions": ["resume", "activate", "navigate", "screenshot"]
+    }
+  }
+}
+```
+
+Minimal `doctor` example:
+
+```json
+{
+  "ok": false,
+  "command": "doctor",
+  "outcome": "blocked",
+  "status": "blocked",
+  "category": "route-blocked",
+  "reason": {
+    "code": "relay_share_required",
+    "message": "Share the tab first."
+  },
+  "route": {
+    "name": "chrome-relay",
+    "browser": "chrome",
+    "attachMode": "relay"
+  },
+  "summary": "Chrome (shared tab, read-only) is not ready yet. It remains read-only and only covers the currently shared tab.",
+  "nextStep": {
+    "action": "fix-blocker",
+    "prompt": "Chrome relay only works for a tab you explicitly share. Share the tab first, then retry."
+  },
+  "routeUx": {
+    "label": "Chrome (shared tab, read-only)",
+    "sharedTabScoped": true,
+    "readOnly": true
+  }
+}
+```
+
+Minimal successful `connect` example:
+
+```json
+{
+  "ok": true,
+  "command": "connect",
+  "outcome": "success",
+  "status": "connected",
+  "category": "session-connected",
+  "route": {
+    "name": "safari",
+    "browser": "safari",
+    "attachMode": "direct"
+  },
+  "summary": "Connected Safari (actionable) session session-safari-demo. It is actionable.",
+  "nextStep": {
+    "action": "session-ready",
+    "prompt": "Use session session-safari-demo for follow-up actions like activate, navigate, or screenshot."
+  },
+  "sessionUx": {
+    "label": "Safari (actionable)",
+    "readOnly": false
+  }
+}
+```
+
 ## HTTP example
 
 Start the local server:
@@ -119,6 +283,7 @@ For narrow adapter-based consumer examples that stay runtime-neutral, use:
 
 - HTTP consumer: [`examples/clients/http-consumer.ts`](../examples/clients/http-consumer.ts)
 - CLI consumer: [`examples/clients/cli-consumer.ts`](../examples/clients/cli-consumer.ts)
+- CLI shell wrapper: [`examples/clients/doctor-connect-wrapper.ts`](../examples/clients/doctor-connect-wrapper.ts)
 - Expanded HTTP walkthrough: [`examples/clients/http-node.ts`](../examples/clients/http-node.ts)
 
 The first two examples use the shared public helper path directly:
@@ -141,6 +306,8 @@ For a Claude Code-style consumer wrapper, the package root also exposes:
 - `prepareClaudeCodeRoute(...)` for the explicit diagnostics-first, attach-or-resume, prompt-oriented wrapper flow
 
 See [`../examples/clients/claude-code-tool.ts`](../examples/clients/claude-code-tool.ts) for a runnable CLI-oriented example that stays on the same shared toolkit surface.
+
+If you want the smallest possible shell-first wrapper instead of importing helpers, start from [`../examples/clients/doctor-connect-wrapper.ts`](../examples/clients/doctor-connect-wrapper.ts). It keeps the same route names and only wraps the route-first `doctor`/`connect` CLI JSON.
 
 They intentionally keep the same route choices across transports: `safari`, `chrome-direct`, and `chrome-relay`, plus optional resume through `LOCAL_BROWSER_BRIDGE_SESSION_ID`.
 

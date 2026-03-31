@@ -209,7 +209,12 @@ export class AttachService {
     const session = await this.getSession(id);
 
     if (session.browser === "chrome" && session.attach.mode === "relay") {
-      return resumeChromeRelaySession(session);
+      const resumed = await resumeChromeRelaySession(session);
+      const refreshedSession = await this.store.update(resumed.session);
+      return {
+        ...resumed,
+        session: refreshedSession
+      };
     }
 
     const tabs = await this.listTabs(session.browser);

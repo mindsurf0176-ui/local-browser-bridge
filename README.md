@@ -9,6 +9,12 @@ Reusable, agent-agnostic local browser bridge for AI clients, developer tools, a
 
 The project started as `safari-attach-tool`, but the product surface is now intentionally broader than any one consumer or agent runtime.
 
+## Implementation status
+
+The toolkit contract in this repo is feature-complete for the v1 bridge surface.
+Safari remains actionable in v1, and Chrome/Chromium remains read-only in v1.
+Downstream consumer integration, including adapter wiring for consumers such as OpenClaw, remains integration work outside this repo.
+
 ## Quick start
 
 If you are new to the repo, start here:
@@ -16,7 +22,7 @@ If you are new to the repo, start here:
 - **Understand the toolkit surface first:** [src/index.ts](src/index.ts) is the shared consumer entrypoint. It re-exports the transport-neutral helper surface plus the reference CLI/HTTP adapters used by downstream runtimes and clients.
 - **Use the contract artifacts as the source of truth:** start with [docs/agent-integration-contract.md](docs/agent-integration-contract.md), then the machine-readable schemas in [schema/capabilities.schema.json](schema/capabilities.schema.json) and [schema/chrome-relay-error.schema.json](schema/chrome-relay-error.schema.json), plus the example payloads in [examples/](examples/).
 - **Pick a transport only at the edge:** the toolkit exposes the same bridge contract through the JSON CLI and the local HTTP API. Choose whichever fits your runtime; neither is the privileged path.
-- **Copy from runnable consumers when wiring a client:** use [examples/clients/http-consumer.ts](examples/clients/http-consumer.ts), [examples/clients/cli-consumer.ts](examples/clients/cli-consumer.ts), the Codex-style wrapper at [examples/clients/codex-consumer.ts](examples/clients/codex-consumer.ts), the Claude Code-style wrapper at [examples/clients/claude-code-tool.ts](examples/clients/claude-code-tool.ts), and the end-to-end demo at [examples/clients/http-node.ts](examples/clients/http-node.ts).
+- **Copy from runnable consumers when wiring a client:** use [examples/clients/http-consumer.ts](examples/clients/http-consumer.ts), [examples/clients/cli-consumer.ts](examples/clients/cli-consumer.ts), the CLI-shell wrapper at [examples/clients/doctor-connect-wrapper.ts](examples/clients/doctor-connect-wrapper.ts), the Codex-style wrapper at [examples/clients/codex-consumer.ts](examples/clients/codex-consumer.ts), the Claude Code-style wrapper at [examples/clients/claude-code-tool.ts](examples/clients/claude-code-tool.ts), and the end-to-end demo at [examples/clients/http-node.ts](examples/clients/http-node.ts).
 - **Treat consumer wrappers as convenience only:** Codex-facing helpers such as `normalizeCodexRoute(...)`, `connectCodexViaCli(...)`, and `connectCodexViaHttp(...)` stay on top of the same agent-agnostic adapter/reference layer.
 
 ## Canonical artifacts and docs
@@ -141,18 +147,169 @@ Chrome sessions are emitted as:
 
 ## Install
 
+Build a local checkout:
+
 ```bash
 npm install
 npm run build
 ```
 
-Install from git as a dependency:
+Run the CLI from a built repo checkout:
+
+```bash
+npm run cli -- --help
+```
+
+Install from git as a dependency or from another local project:
 
 ```bash
 npm install <git-url>#<commit-ish>
 ```
 
 The package uses `prepare`, so a git install builds `dist/` during installation and exposes the same stable root helper surface plus declarations through `local-browser-bridge`.
+After install, the package exposes these executable names:
+
+- `local-browser-bridge`
+- `local-browser-bridge-mcp`
+- `local-browser-bridge-chrome-relay`
+- `safari-attach-tool` (compatibility alias for `local-browser-bridge`)
+
+For the route-first connection flow, use the published `local-browser-bridge` bin. `npm run cli -- ...` is the repo-checkout convenience entrypoint for the same CLI during local development.
+
+## MCP stdio RC
+
+This repo now includes a minimal MCP stdio release-candidate surface for Claude Code and generic MCP clients.
+
+Current MCP tools:
+
+- `browser_doctor(route, sessionId?)`
+- `browser_tabs(route)`
+- `browser_connect(route, sessionId?)`
+
+`browser_tabs` is available for Safari and `chrome-direct`.
+For `chrome-relay`, `browser_tabs` returns a structured non-error blocked result because relay is shared-tab scoped to the currently shared tab rather than browser-wide.
+Runtime action tools such as `activate`, `navigate`, or `screenshot` are intentionally not part of this RC MCP surface.
+
+Each MCP tool result now also includes the same additive top-level branching fields without removing the older tool-specific fields:
+
+- `outcome`: `success | blocked | unsupported | error`
+- `status`: stable high-level state such as `ready`, `connected`, `listed`, `blocked`, `unsupported`, or `failed`
+- `category`: compact tool/result category such as `route-ready`, `session-connected`, `tab-list`, or `shared-tab-scope`
+- `reason`: optional `{ code, message, retryable?, userActionRequired? }`
+
+Tiny copy-paste branching example for agents or client wrappers:
+
+```ts
+const payload = result.structuredContent;
+
+if (payload.outcome === "success") {
+  // Safe to continue: use payload.envelope/session/tabs as appropriate.
+} else if (payload.outcome === "blocked") {
+  // Ask the user to do the nextStep or surface payload.reason/prompt.
+} else if (payload.outcome === "unsupported") {
+  // Pick a different route/tool. Example: browser_tabs + chrome-relay.
+} else {
+  // Real error: inspect payload.reason or payload.error.
+}
+```
+
+Build and run the stdio server from this repo checkout:
+
+```bash
+npm install
+npm run build
+npm run mcp
+```
+
+Equivalent direct repo-checkout command after `npm run build`:
+
+```bash
+node ./dist/src/mcp-stdio.js
+```
+
+Installed dependency usage from a consumer project:
+
+```bash
+./node_modules/.bin/local-browser-bridge-mcp
+# or, if the bin is already on PATH
+local-browser-bridge-mcp
+```
+
+### Claude Code setup
+
+Copy-paste example file:
+
+- [examples/mcp/claude-code.installed-package.mcp.json](examples/mcp/claude-code.installed-package.mcp.json)
+
+Project-local `.mcp.json` in a consumer project that installed `local-browser-bridge`:
+
+```json
+{
+  "mcpServers": {
+    "local-browser-bridge": {
+      "command": "./node_modules/.bin/local-browser-bridge-mcp"
+    }
+  }
+}
+```
+
+If the binary is already on `PATH`, you can shorten that to:
+
+```json
+{
+  "mcpServers": {
+    "local-browser-bridge": {
+      "command": "local-browser-bridge-mcp"
+    }
+  }
+}
+```
+
+### Generic MCP client setup
+
+Copy-paste example file:
+
+- [examples/mcp/generic-stdio.repo-checkout.json](examples/mcp/generic-stdio.repo-checkout.json)
+
+Most stdio MCP clients accept the same `command` plus `args` shape. This form is useful when you want the config to point at a built checkout directly:
+
+```json
+{
+  "mcpServers": {
+    "local-browser-bridge": {
+      "command": "node",
+      "args": [
+        "/ABSOLUTE/PATH/TO/local-browser-bridge/dist/src/mcp-stdio.js"
+      ]
+    }
+  }
+}
+```
+
+Quick inspector smoke test:
+
+```bash
+npx @modelcontextprotocol/inspector node /ABSOLUTE/PATH/TO/local-browser-bridge/dist/src/mcp-stdio.js
+```
+
+Quick installed-binary smoke test:
+
+```bash
+test -x ./node_modules/.bin/local-browser-bridge-mcp
+```
+
+Quick repo-checkout smoke test:
+
+```bash
+test -f ./dist/src/mcp-stdio.js
+```
+
+Tool result notes:
+
+- results include `structuredContent` JSON plus a text mirror for client compatibility
+- `browser_doctor` keeps blockers explicit without pretending the route is connected
+- `browser_connect` keeps read-only and shared-tab scope explicit in `truth` and `envelope`
+- unsupported runtime actions stay explicit in `truth.unsupportedRuntimeActions`
 
 ## Consumer surfaces and examples
 
@@ -187,6 +344,7 @@ npm run cli -- session-activate --id <session-id>
 npm run cli -- session-navigate --id <session-id> --url https://example.com/next
 npm run cli -- session-screenshot --id <session-id> --output .tmp/session.png
 npm run cli -- serve --host 127.0.0.1 --port 3000
+npm run mcp
 ```
 
 Commands:
@@ -248,8 +406,28 @@ See [docs/consuming-the-bridge.md](docs/consuming-the-bridge.md) for fuller CLI 
 For runtime-neutral wrapper patterns across OpenClaw, AWOS, Codex, Claude Code, and custom consumers, including copyable minimal adapter skeletons built on the shared helper surface, see [docs/adapter-patterns.md](docs/adapter-patterns.md).
 If you are importing the toolkit directly instead of shelling out or calling HTTP, start from [src/index.ts](src/index.ts), which re-exports the shared helpers plus the CLI/HTTP reference adapters used in [examples/clients/cli-consumer.ts](examples/clients/cli-consumer.ts), [examples/clients/http-consumer.ts](examples/clients/http-consumer.ts), and [examples/clients/codex-consumer.ts](examples/clients/codex-consumer.ts).
 
+If you want the smallest route-first shell wrapper instead of importing helpers, start from [examples/clients/doctor-connect-wrapper.ts](examples/clients/doctor-connect-wrapper.ts). It shells out to `local-browser-bridge doctor --route ...` and `local-browser-bridge connect --route ...`, then returns one concise wrapper JSON result while preserving additive top-level `outcome` / `status` / `category` / `reason` branching fields and keeping Safari actionable, `chrome-direct` read-only, and `chrome-relay` read-only plus shared-tab scoped.
+
 For a thin Codex-facing wrapper that still uses the same shared/public toolkit surface, use `normalizeCodexRoute(...)`, `connectCodexViaCli(...)`, or `connectCodexViaHttp(...)` from the package root, then copy from [examples/clients/codex-consumer.ts](examples/clients/codex-consumer.ts).
 For a thin Claude Code-facing wrapper that still uses the same shared/public toolkit surface, use `normalizeClaudeCodeRoute(...)` and `prepareClaudeCodeRoute(...)` from the package root, then copy from [examples/clients/claude-code-tool.ts](examples/clients/claude-code-tool.ts).
+
+Quick copy-paste run for the shell wrapper:
+
+```bash
+npm install
+npm run build
+node --experimental-strip-types examples/clients/doctor-connect-wrapper.ts safari
+node --experimental-strip-types examples/clients/doctor-connect-wrapper.ts chrome-relay
+```
+
+Installed-package equivalent once the dependency is present on `PATH` or in `node_modules/.bin`:
+
+```bash
+local-browser-bridge doctor --route safari
+local-browser-bridge connect --route safari
+local-browser-bridge doctor --route chrome-relay
+local-browser-bridge connect --route chrome-relay
+```
 
 Quick copy-paste run for the demo:
 

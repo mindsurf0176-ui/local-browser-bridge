@@ -13,6 +13,11 @@
       "require": "./dist/src/index.js",
       "default": "./dist/src/index.js"
     },
+    "./mcp": {
+      "types": "./dist/src/mcp.d.ts",
+      "require": "./dist/src/mcp.js",
+      "default": "./dist/src/mcp.js"
+    },
     "./codex": {
       "types": "./dist/src/codex.d.ts",
       "require": "./dist/src/codex.js",
@@ -35,6 +40,7 @@
   ],
   "bin": {
     "local-browser-bridge": "dist/src/cli.js",
+    "local-browser-bridge-mcp": "dist/src/mcp-stdio.js",
     "safari-attach-tool": "dist/src/cli.js",
     "local-browser-bridge-chrome-relay": "dist/src/chrome-relay-helper-cli.js"
   },
@@ -44,6 +50,7 @@
     "prepare": "npm run build",
     "test": "npm run build && node --test dist/tests/**/*.test.js",
     "cli": "node dist/src/cli.js",
+    "mcp": "node dist/src/mcp-stdio.js",
     "serve": "node dist/src/cli.js serve",
     "relay-helper": "node dist/src/chrome-relay-helper-cli.js"
   },

@@ -236,6 +236,21 @@ Use the bridge as a deterministic local dependency for a coding agent:
 
 If you want that shape as an actual thin helper instead of re-wiring the route mapping every time, import `normalizeCodexRoute(...)`, `connectCodexViaCli(...)`, or `connectCodexViaHttp(...)` from the package root. They keep the same route names (`safari`, `chrome-direct`, `chrome-relay`) and only layer Codex-oriented route normalization plus transport setup on top of the shared adapter/reference helpers.
 
+If the consumer prefers to shell out to the bridge binary directly, the CLI now also exposes the same route names through a productized connection flow:
+
+```bash
+local-browser-bridge doctor --route safari
+local-browser-bridge connect --route safari
+local-browser-bridge doctor --route chrome-relay
+local-browser-bridge connect --route chrome-relay --session-id <session-id>
+```
+
+That route-first CLI surface is useful when the agent wants:
+
+- one machine-readable JSON envelope instead of manually sequencing `diagnostics` and `attach`
+- explicit `summary`, `prompt`, and `nextStep` fields for agent handoff
+- stable honesty that Safari is actionable while `chrome-direct` stays read-only and `chrome-relay` stays read-only plus shared-tab scoped
+
 Minimal adapter skeleton:
 
 ```ts
@@ -269,6 +284,26 @@ export async function runAgentStep(adapter: BridgeAdapter, request: {
   }
 }
 ```
+
+### CLI-first generic agent wrapper
+
+For agents that do not want to import package helpers and just need a deterministic subprocess contract, use the new `doctor` and `connect` commands as the top-level wrapper boundary.
+
+Copyable example: [`examples/clients/doctor-connect-wrapper.ts`](../examples/clients/doctor-connect-wrapper.ts). It shells out to the CLI, short-circuits blocked routes after `doctor`, and returns one concise wrapper result for agent shells while preserving the same top-level `outcome` / `status` / `category` / `reason` branching fields.
+
+Recommended loop:
+
+1. Run `local-browser-bridge doctor --route <route>`.
+2. If `ok === false`, surface `summary`, `prompt`, and `nextStep` directly to the user.
+3. If `ok === true`, run `local-browser-bridge connect --route <route>`.
+4. After a successful connect, treat `session` as authoritative and read `sessionUx.readOnly` / `sessionUx.sharedTabScoped` before promising actions.
+
+Important honesty rules:
+
+- `route = safari` can become actionable and should be described that way when `sessionUx.readOnly === false`
+- `route = chrome-direct` should still be described as read-only
+- `route = chrome-relay` should still be described as read-only and limited to the currently shared tab
+- when `connect` returns `errorUx`, prefer that structured surface over free-form stderr parsing
 
 ### Claude Code-style tool wrapper
 

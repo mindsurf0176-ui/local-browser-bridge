@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "local-browser-bridge": {
+      "command": "node",
+      "args": [
+        "/ABSOLUTE/PATH/TO/local-browser-bridge/dist/src/mcp-stdio.js"
+      ]
+    }
+  }
+}

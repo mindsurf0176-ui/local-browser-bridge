@@ -175,8 +175,18 @@ test("consumer sample stays aligned with the stable contract guidance", async ()
   const sample = await readFile(resolve(root, "examples", "clients", "http-node.ts"), "utf8");
   const httpConsumer = await readFile(resolve(root, "examples", "clients", "http-consumer.ts"), "utf8");
   const cliConsumer = await readFile(resolve(root, "examples", "clients", "cli-consumer.ts"), "utf8");
+  const doctorConnectWrapper = await readFile(resolve(root, "examples", "clients", "doctor-connect-wrapper.ts"), "utf8");
+  const claudeCodeInstalledPackageMcpConfig = await readFile(
+    resolve(root, "examples", "mcp", "claude-code.installed-package.mcp.json"),
+    "utf8"
+  );
+  const genericRepoCheckoutMcpConfig = await readFile(
+    resolve(root, "examples", "mcp", "generic-stdio.repo-checkout.json"),
+    "utf8"
+  );
   const consumerGuide = await readFile(resolve(root, "docs", "consuming-the-bridge.md"), "utf8");
   const adapterPatterns = await readFile(resolve(root, "docs", "adapter-patterns.md"), "utf8");
+  const readme = await readFile(resolve(root, "README.md"), "utf8");
 
   assert.match(sample, /schemaVersion !== 1/);
   assert.match(sample, /chrome-direct/);
@@ -213,6 +223,25 @@ test("consumer sample stays aligned with the stable contract guidance", async ()
   assert.match(cliConsumer, /LOCAL_BROWSER_BRIDGE_SESSION_ID/);
   assert.match(cliConsumer, /transport: cli/);
 
+  assert.match(doctorConnectWrapper, /runBridgeJson<DoctorPayload>\(\["doctor"/);
+  assert.match(doctorConnectWrapper, /runBridgeJson<ConnectPayload>\(\["connect"/);
+  assert.match(doctorConnectWrapper, /LOCAL_BROWSER_BRIDGE_SESSION_ID/);
+  assert.match(doctorConnectWrapper, /LOCAL_BROWSER_BRIDGE_BIN/);
+  assert.match(doctorConnectWrapper, /wrapper: "doctor-connect"/);
+  assert.match(doctorConnectWrapper, /outcome: "success"/);
+  assert.match(doctorConnectWrapper, /category: "session-connected"/);
+  assert.match(doctorConnectWrapper, /payload\.reason/);
+  assert.match(doctorConnectWrapper, /"chrome-relay"/);
+  assert.match(doctorConnectWrapper, /"safari"/);
+  assert.match(doctorConnectWrapper, /sharedTabScoped/);
+  assert.match(doctorConnectWrapper, /suggestedActions/);
+
+  assert.match(claudeCodeInstalledPackageMcpConfig, /node_modules\/\.bin\/local-browser-bridge-mcp/);
+  assert.doesNotMatch(claudeCodeInstalledPackageMcpConfig, /dist\/src\/mcp-stdio\.js/);
+  assert.match(genericRepoCheckoutMcpConfig, /"command": "node"/);
+  assert.match(genericRepoCheckoutMcpConfig, /dist\/src\/mcp-stdio\.js/);
+  assert.doesNotMatch(genericRepoCheckoutMcpConfig, /node_modules\/\.bin\/local-browser-bridge-mcp/);
+
   assert.match(consumerGuide, /src\/index\.ts/);
   assert.match(consumerGuide, /import \{ interpretChromeRelayFailure \} from "\.\.\/src"/);
   assert.match(
@@ -235,6 +264,7 @@ test("consumer sample stays aligned with the stable contract guidance", async ()
   assert.match(consumerGuide, /retryable/);
   assert.match(consumerGuide, /examples\/clients\/http-consumer\.ts/);
   assert.match(consumerGuide, /examples\/clients\/cli-consumer\.ts/);
+  assert.match(consumerGuide, /examples\/clients\/doctor-connect-wrapper\.ts/);
   assert.match(consumerGuide, /examples\/clients\/codex-consumer\.ts/);
   assert.match(consumerGuide, /examples\/clients\/claude-code-tool\.ts/);
   assert.match(consumerGuide, /createHttpBridgeAdapter/);
@@ -245,6 +275,12 @@ test("consumer sample stays aligned with the stable contract guidance", async ()
   assert.match(consumerGuide, /connectCodexViaHttp/);
   assert.match(consumerGuide, /normalizeClaudeCodeRoute/);
   assert.match(consumerGuide, /prepareClaudeCodeRoute/);
+  assert.match(consumerGuide, /node --experimental-strip-types examples\/clients\/doctor-connect-wrapper\.ts safari/);
+  assert.match(consumerGuide, /outcome`, `status`, `category`, and optional `reason`/);
+  assert.match(consumerGuide, /"outcome": "blocked"/);
+  assert.match(consumerGuide, /"category": "session-connected"/);
+  assert.match(consumerGuide, /Chrome relay only works for a tab you explicitly share/);
+  assert.match(consumerGuide, /suggestedActions/);
   assert.doesNotMatch(consumerGuide, /OpenClaw\/browser-style consumer demo/);
 
   assert.match(adapterPatterns, /OpenClaw/);
@@ -266,6 +302,30 @@ test("consumer sample stays aligned with the stable contract guidance", async ()
   assert.match(adapterPatterns, /connectCodexViaHttp/);
   assert.match(adapterPatterns, /prepareToolPrompt/);
   assert.match(adapterPatterns, /export async function connect\(/);
+  assert.match(adapterPatterns, /examples\/clients\/doctor-connect-wrapper\.ts/);
+  assert.match(adapterPatterns, /outcome` \/ `status` \/ `category` \/ `reason`/);
+
+  assert.match(readme, /examples\/clients\/doctor-connect-wrapper\.ts/);
+  assert.match(readme, /local-browser-bridge doctor --route/);
+  assert.match(readme, /outcome` \/ `status` \/ `category` \/ `reason`/);
+  assert.match(readme, /chrome-relay` read-only plus shared-tab scoped/);
+  assert.match(readme, /`browser_tabs` is available for Safari and `chrome-direct`/);
+  assert.match(readme, /structured non-error blocked result/);
+  assert.match(readme, /Runtime action tools such as `activate`, `navigate`, or `screenshot` are intentionally not part of this RC MCP surface/);
+  assert.match(readme, /examples\/mcp\/claude-code\.installed-package\.mcp\.json/);
+  assert.match(readme, /examples\/mcp\/generic-stdio\.repo-checkout\.json/);
+  assert.match(readme, /npm run cli -- --help/);
+  assert.doesNotMatch(readme, /npm run bridge -- --help/);
+  assert.match(readme, /consumer project[\s\S]*node_modules\/\.bin\/local-browser-bridge-mcp/);
+  assert.match(
+    readme,
+    /Equivalent direct repo-checkout command after `npm run build`:\s*```bash\s*node \.\/dist\/src\/mcp-stdio\.js\s*```/
+  );
+  assert.match(readme, /node \.\/dist\/src\/mcp-stdio\.js/);
+  assert.doesNotMatch(
+    readme,
+    /Equivalent direct repo-checkout command after `npm run build`:\s*```bash\s*\.\/node_modules\/\.bin\/local-browser-bridge-mcp\s*```/
+  );
 });
 
 test("chrome relay error schema artifact stays documented and aligned with the example", async () => {

@@ -2,3 +2,7 @@ dist
 .tmp-tests
 .data
 node_modules
+
+# Runtime artifacts
+.local-browser-bridge/
+.tmp-manual/

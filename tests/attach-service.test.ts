@@ -557,6 +557,28 @@ test("cli prints diagnostics JSON and machine-readable errors", async () => {
   assert.equal(capabilitiesPayload.capabilities.browsers[0].browser, "safari");
   assert.equal(capabilitiesPayload.capabilities.browsers[0].operations.attach, true);
 
+  const doctorResult = await withCapturedStreams(async () => {
+    await runCli(["doctor", "--route", "safari"], service);
+  });
+  const doctorPayload = JSON.parse(doctorResult.stdout) as {
+    ok: boolean;
+    blocked: boolean;
+    route: { name: string; browser: string; attachMode: string };
+    routeUx: { label: string; readOnly: boolean };
+    nextStep: { action: string; command?: string };
+    summary: string;
+  };
+  assert.equal(doctorPayload.ok, true);
+  assert.equal(doctorPayload.blocked, false);
+  assert.equal(doctorPayload.route.name, "safari");
+  assert.equal(doctorPayload.route.browser, "safari");
+  assert.equal(doctorPayload.route.attachMode, "direct");
+  assert.equal(doctorPayload.routeUx.label, "Safari (actionable)");
+  assert.equal(doctorPayload.routeUx.readOnly, false);
+  assert.equal(doctorPayload.nextStep.action, "connect");
+  assert.equal(doctorPayload.nextStep.command, "local-browser-bridge connect --route safari");
+  assert.match(doctorPayload.summary, /Safari \(actionable\) is ready/i);
+
   const attachResult = await withCapturedStreams(async () => {
     await runCli(["attach", "--browser", "safari", "--window-index", "2", "--tab-index", "3"], service);
   });
@@ -573,6 +595,29 @@ test("cli prints diagnostics JSON and machine-readable errors", async () => {
   assert.equal(attachPayload.session.status.state, "actionable");
   assert.equal(attachPayload.session.capabilities.navigate, true);
   assert.equal(attachPayload.session.capabilities.screenshot, true);
+
+  const connectResult = await withCapturedStreams(async () => {
+    await runCli(["connect", "--route", "safari"], service);
+  });
+  const connectPayload = JSON.parse(connectResult.stdout) as {
+    ok: boolean;
+    connected: boolean;
+    routeUx: { label: string };
+    sessionUx: { label: string; readOnly: boolean };
+    session: { kind: string; status: { state: string } };
+    nextStep: { action: string; prompt: string };
+    summary: string;
+  };
+  assert.equal(connectPayload.ok, true);
+  assert.equal(connectPayload.connected, true);
+  assert.equal(connectPayload.routeUx.label, "Safari (actionable)");
+  assert.equal(connectPayload.sessionUx.label, "Safari (actionable)");
+  assert.equal(connectPayload.sessionUx.readOnly, false);
+  assert.equal(connectPayload.session.kind, "safari-actionable");
+  assert.equal(connectPayload.session.status.state, "actionable");
+  assert.equal(connectPayload.nextStep.action, "session-ready");
+  assert.match(connectPayload.nextStep.prompt, /activate, navigate, or screenshot/i);
+  assert.match(connectPayload.summary, /Connected Safari \(actionable\) session/i);
 
   const errorResult = await withCapturedStreams(async () => {
     try {
@@ -676,6 +721,25 @@ async function withChromeRelayStateFixture<T>(state: unknown, run: (statePath: s
 
   try {
     return await run(statePath);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.LOCAL_BROWSER_BRIDGE_CHROME_RELAY_STATE_PATH;
+    } else {
+      process.env.LOCAL_BROWSER_BRIDGE_CHROME_RELAY_STATE_PATH = previous;
+    }
+  }
+}
+
+async function withChromeRelayStatePathOverride<T>(value: string | undefined, run: () => Promise<T>): Promise<T> {
+  const previous = process.env.LOCAL_BROWSER_BRIDGE_CHROME_RELAY_STATE_PATH;
+  if (value === undefined) {
+    delete process.env.LOCAL_BROWSER_BRIDGE_CHROME_RELAY_STATE_PATH;
+  } else {
+    process.env.LOCAL_BROWSER_BRIDGE_CHROME_RELAY_STATE_PATH = value;
+  }
+
+  try {
+    return await run();
   } finally {
     if (previous === undefined) {
       delete process.env.LOCAL_BROWSER_BRIDGE_CHROME_RELAY_STATE_PATH;
@@ -964,27 +1028,29 @@ test("chrome capabilities expose read-only inspection and chromium normalizes to
 });
 
 test("chrome diagnostics expose discovery candidates and selected endpoint", async () => {
-  await withChromeDevtoolsFixture(async (baseUrl) => {
-    const service = new AttachService();
-    const diagnostics = await service.diagnostics("chrome");
+  await withChromeRelayStatePathOverride(resolve(process.cwd(), ".tmp-tests", "missing-relay-state.json"), async () => {
+    await withChromeDevtoolsFixture(async (baseUrl) => {
+      const service = new AttachService();
+      const diagnostics = await service.diagnostics("chrome");
 
-    assert.equal(diagnostics.browser, "chrome");
-    assert.equal(diagnostics.supportedFeatures.inspectTabs, true);
-    assert.equal(diagnostics.supportedFeatures.attach, true);
-    assert.equal(diagnostics.supportedFeatures.navigate, false);
-    assert.equal(diagnostics.supportedFeatures.savedSessions, true);
-    assert.equal(diagnostics.adapter?.mode, "chrome-devtools-readonly");
-    assert.equal(diagnostics.attach?.direct.mode, "direct");
-    assert.equal(diagnostics.attach?.direct.scope, "browser");
-    assert.equal(diagnostics.attach?.direct.ready, true);
-    assert.match(String(diagnostics.attach?.direct.state), /ready|degraded/);
-    assert.equal(diagnostics.attach?.relay.mode, "relay");
-    assert.equal(diagnostics.attach?.relay.ready, false);
-    assert.equal(diagnostics.attach?.relay.state, "unavailable");
-    assert.equal(diagnostics.attach?.relay.blockers[0]?.code, "relay_probe_not_configured");
-    assert.equal(diagnostics.adapter?.discovery?.selectedBaseUrl, baseUrl);
-    assert.match(diagnostics.constraints.join(" "), /read-only/i);
-    assert.ok((diagnostics.adapter?.discovery?.candidates.length ?? 0) >= 1);
+      assert.equal(diagnostics.browser, "chrome");
+      assert.equal(diagnostics.supportedFeatures.inspectTabs, true);
+      assert.equal(diagnostics.supportedFeatures.attach, true);
+      assert.equal(diagnostics.supportedFeatures.navigate, false);
+      assert.equal(diagnostics.supportedFeatures.savedSessions, true);
+      assert.equal(diagnostics.adapter?.mode, "chrome-devtools-readonly");
+      assert.equal(diagnostics.attach?.direct.mode, "direct");
+      assert.equal(diagnostics.attach?.direct.scope, "browser");
+      assert.equal(diagnostics.attach?.direct.ready, true);
+      assert.match(String(diagnostics.attach?.direct.state), /ready|degraded/);
+      assert.equal(diagnostics.attach?.relay.mode, "relay");
+      assert.equal(diagnostics.attach?.relay.ready, false);
+      assert.equal(diagnostics.attach?.relay.state, "unavailable");
+      assert.equal(diagnostics.attach?.relay.blockers[0]?.code, "relay_probe_not_configured");
+      assert.equal(diagnostics.adapter?.discovery?.selectedBaseUrl, baseUrl);
+      assert.match(diagnostics.constraints.join(" "), /read-only/i);
+      assert.ok((diagnostics.adapter?.discovery?.candidates.length ?? 0) >= 1);
+    });
   });
 });
 
@@ -1652,6 +1718,64 @@ test("chrome relay CLI and HTTP errors expose the same structured failure detail
         };
         assert.equal(cliPayload.error.code, httpPayload.error.code);
         assert.deepEqual(cliPayload.error.details, httpPayload.error.details);
+
+        const cliDoctor = await withCapturedStreams(async () => {
+          await runCli(["doctor", "--route", "chrome-relay"], service);
+        });
+        const cliDoctorPayload = JSON.parse(cliDoctor.stdout) as {
+          ok: boolean;
+          blocked: boolean;
+          outcome: string;
+          status: string;
+          category: string;
+          reason?: { code?: string; message?: string };
+          routeUx: { label: string; readOnly: boolean; sharedTabScoped: boolean; prompt?: string };
+          nextStep: { action: string; prompt: string };
+          summary: string;
+        };
+        assert.equal(cliDoctorPayload.ok, false);
+        assert.equal(cliDoctorPayload.blocked, true);
+        assert.equal(cliDoctorPayload.outcome, "blocked");
+        assert.equal(cliDoctorPayload.status, "blocked");
+        assert.equal(cliDoctorPayload.category, "route-blocked");
+        assert.equal(cliDoctorPayload.reason?.code, "relay_share_required");
+        assert.equal(cliDoctorPayload.routeUx.label, "Chrome (shared tab, read-only)");
+        assert.equal(cliDoctorPayload.routeUx.readOnly, true);
+        assert.equal(cliDoctorPayload.routeUx.sharedTabScoped, true);
+        assert.match(cliDoctorPayload.routeUx.prompt ?? "", /Share the tab first/i);
+        assert.equal(cliDoctorPayload.nextStep.action, "fix-blocker");
+        assert.match(cliDoctorPayload.summary, /currently shared tab/i);
+
+        const cliConnect = await withCapturedStreams(async () => {
+          await runCli(["connect", "--route", "chrome-relay"], service);
+        });
+        const cliConnectPayload = JSON.parse(cliConnect.stdout) as {
+          ok: boolean;
+          blocked: boolean;
+          connected: boolean;
+          outcome: string;
+          status: string;
+          category: string;
+          reason?: { code?: string; message?: string };
+          error?: { code?: string };
+          routeUx?: { state?: string; sharedTabScoped?: boolean; readOnly?: boolean; prompt?: string };
+          nextStep: { action: string; prompt: string };
+          summary: string;
+        };
+        assert.equal(cliConnectPayload.ok, false);
+        assert.equal(cliConnectPayload.blocked, true);
+        assert.equal(cliConnectPayload.connected, false);
+        assert.equal(cliConnectPayload.outcome, "blocked");
+        assert.equal(cliConnectPayload.status, "blocked");
+        assert.equal(cliConnectPayload.category, "connection-blocked");
+        assert.equal(cliConnectPayload.reason?.code, "relay_share_required");
+        assert.equal(cliConnectPayload.error, undefined);
+        assert.equal(cliConnectPayload.routeUx?.state, "blocked");
+        assert.equal(cliConnectPayload.routeUx?.sharedTabScoped, true);
+        assert.equal(cliConnectPayload.routeUx?.readOnly, true);
+        assert.match(cliConnectPayload.routeUx?.prompt ?? "", /Share the tab first/i);
+        assert.equal(cliConnectPayload.nextStep.action, "fix-blocker");
+        assert.match(cliConnectPayload.summary, /currently shared tab/i);
       } finally {
         await new Promise<void>((resolvePromise, reject) =>
           server.close((error) => (error ? reject(error) : resolvePromise()))

@@ -6,6 +6,22 @@
  * without reaching into incidental sample code paths.
  */
 export {
+  connectConnectionRoute,
+  createServiceBridgeAdapter,
+  doctorConnectionRoute,
+  normalizeConnectionRouteName,
+  type ConnectionCategory,
+  type ConnectionConnectEnvelope,
+  type ConnectionDoctorEnvelope,
+  type ConnectionNextStep,
+  type ConnectionOutcome,
+  type ConnectionReason,
+  type ConnectionRouteInput,
+  type ConnectionRouteName,
+  type ConnectionStatus
+} from "./connection-ux";
+
+export {
   chromeRelayBranchPrompt,
   chromeRelayRetryGuidance,
   chromeRelayScopeNote,
@@ -71,6 +87,8 @@ export {
   type ClaudeCodeRouteInput,
   type ClaudeCodeRouteName
 } from "./claude-code";
+
+export { createMcpServer, runMcpStdioServer, SUPPORTED_PROTOCOL_VERSIONS } from "./mcp";
 
 export type {
   AttachmentSession,

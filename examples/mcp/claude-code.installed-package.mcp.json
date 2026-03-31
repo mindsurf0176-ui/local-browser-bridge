@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "local-browser-bridge": {
+      "command": "./node_modules/.bin/local-browser-bridge-mcp"
+    }
+  }
+}
